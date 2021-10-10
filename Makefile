@@ -4,7 +4,7 @@
 
 EXE := main
 SOURCES = main.c
-LIBS := lib/libdoc.a
+LIBS := lib/libdoc.a -lncurses -lpanel
 
 BUILD_DIR := build/
 DIST_DIR := dist/
