@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------
 
 EXE := main
-SOURCES = main.c
+SOURCES = main.c src/curses_extra.c src/strfmt.c
 LIBS := lib/libdoc.a -lncurses -lpanel
 
 BUILD_DIR := build/
