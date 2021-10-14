@@ -22,6 +22,20 @@ int main(int argc, char **argv){
     clear();
     curs_set(0);
 
+    // check colors
+    if(!has_colors()){
+        printw("This terminal doesn't support colors!\nPlease use another terminal");
+        getch();
+        exit(-1);
+    }
+    if(!can_change_color()){
+        printw("This terminal doesn't support custom colors!\nPlease use another terminal");
+        getch();
+        exit(-1);
+    }
+
+    start_color();
+
     frames_init();
     mytui_init();
 

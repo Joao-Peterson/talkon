@@ -4,7 +4,8 @@
 
 frame_charset_t frame_normal;
 frame_charset_t frame_dotted;
-frame_charset_t frame_dotted_chanfer_slash;
+frame_charset_t frame_dotted_corner_slash;
+frame_charset_t frame_dotted_corner_star;
 frame_charset_t frame_square_brackets;
 frame_charset_t frame_double;
 frame_charset_t frame_hash;
@@ -24,7 +25,8 @@ void frames_init(void){
     frame_charset_t tmp_frame_grain_thin = { ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD };
     frame_charset_t tmp_frame_grain_thick = { ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD, ACS_CKBOARD };
     frame_charset_t tmp_frame_solid = { ACS_BLOCK, ACS_BLOCK, ACS_BLOCK, ACS_BLOCK, ACS_BLOCK, ACS_BLOCK, ACS_BLOCK, ACS_BLOCK };
-    frame_charset_t tmp_frame_dotted_chanfer_slash = { '|', '|', '-', '-', '/', '\\', '\\', '/' };
+    frame_charset_t tmp_frame_dotted_corner_slash = { '|', '|', '-', '-', '/', '\\', '\\', '/' };
+    frame_charset_t tmp_frame_dotted_corner_star = { '|', '|', '-', '-', '*', '*', '*', '*' };
 
     frame_normal = tmp_frame_normal;
     frame_dotted = tmp_frame_dotted;
@@ -34,7 +36,8 @@ void frames_init(void){
     frame_grain_thin = tmp_frame_grain_thin;
     frame_grain_thick = tmp_frame_grain_thick;
     frame_solid = tmp_frame_solid;
-    frame_dotted_chanfer_slash = tmp_frame_dotted_chanfer_slash;
+    frame_dotted_corner_slash = tmp_frame_dotted_corner_slash;
+    frame_dotted_corner_star = tmp_frame_dotted_corner_star;
 }
 
 // set the size of a window
