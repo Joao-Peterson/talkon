@@ -2,10 +2,24 @@
 #define _CURSES_EXTRA_HEADER_
 
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
-#include <curses.h>
-#include <panel.h>
 #include "strfmt.h"
+
+#if defined(__linux__) || defined(__unix__) || defined(__posix__)
+    #include <curses.h>
+    #include <panel.h>
+#elif defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(__NT__)
+    #include <curses.h>
+    #include <panel.h>
+#elif defined(__ANDROID__)
+    #error android is not supported!
+#elif defined(__APPLE__) || defined(__MACH__)
+    #error macOS is not supported!
+#elif
+    #error your OS is not supported!
+#endif
 
 /* ----------------------------------------- Structs ---------------------------------------- */
 

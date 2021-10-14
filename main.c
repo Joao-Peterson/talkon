@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+// #include <sys/types.h>
+// #include <sys/socket.h>
+// #include <netinet/in.h>
+// #include <arpa/inet.h>
 // #include <netdb.h>
 
 #include "inc/doc.h"
@@ -12,20 +12,6 @@
 #include "inc/strfmt.h"
 #include "inc/curses_extra.h"
 #include "inc/mytui.h"
-
-
-#if defined(__linux__) || defined(__unix__) || defined(__posix__)
-    #include <curses.h>
-    #include <panel.h>
-#elif defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(__NT__)
-    #include <pdcurses.h>
-#elif defined(__ANDROID__)
-    #error android is not supported!
-#elif defined(__APPLE__) || defined(__MACH__)
-    #error macOS is not supported!
-#elif
-    #error your OS is not supported!
-#endif
 
 int main(int argc, char **argv){
 

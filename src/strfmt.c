@@ -264,6 +264,7 @@ char *strfmtln(char *line, size_t minlen, size_t maxlen, strfmt_t fmt, void *opt
                 break;
 
             case strfmt_linebreak_wrap_on_word:
+                {
                     char *line_brk = (char*)(line + line_len);
 
                     // go back until whitespace
@@ -297,6 +298,7 @@ char *strfmtln(char *line, size_t minlen, size_t maxlen, strfmt_t fmt, void *opt
                     free(newline_1);
 
                     return newline;
+                }
                 break;
         }
     }
