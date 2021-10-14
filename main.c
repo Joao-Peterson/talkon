@@ -25,8 +25,12 @@ int main(int argc, char **argv){
     frames_init();
     mytui_init();
 
+    // first render
+    mytui_draw();
+    update_panels();
+    refresh();
+
     // main loop
-    bool first_loop = true;
     while(1){
         
         // ----------------------- draw ------------------------
@@ -35,22 +39,20 @@ int main(int argc, char **argv){
         refresh();
 
         // ----------------------- input -----------------------
-        if(!first_loop){                                                            // only after first render round
-            char input = getch();
+        int input = getch();
 
-            switch(input){
-                case 'q':
-                    endwin();
-                    exit(0);
-                    break;
+        mytui_logic(input);
 
-                default:
-                    break;
-            }
+        switch(input){
+            case 'q':
+                endwin();
+                exit(0);
+                break;
 
+            default:
+                break;
         }
 
-        first_loop = false;
     }
 
     endwin();

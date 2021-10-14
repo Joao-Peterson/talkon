@@ -54,6 +54,7 @@ typedef struct{
 
 extern frame_charset_t frame_normal;
 extern frame_charset_t frame_dotted;
+extern frame_charset_t frame_dotted_chanfer_slash;
 extern frame_charset_t frame_square_brackets;
 extern frame_charset_t frame_double;
 extern frame_charset_t frame_hash;

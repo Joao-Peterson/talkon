@@ -3,6 +3,16 @@
 
 #include "curses_extra.h"
 
+/* ----------------------------------------- Enums ------------------------------------------ */
+
+typedef enum{
+    window_id_main,
+    window_id_nav,
+    window_id_nodes,
+    window_id_talk,
+    window_id_input
+}window_id_t;
+
 /* ----------------------------------------- Structs ---------------------------------------- */
 
 // global tui object
@@ -14,6 +24,11 @@ struct mytui_t{
         curses_window_t talk;
         curses_window_t input;
     }windows;
+
+    frame_charset_t window_frame_normal;
+    frame_charset_t window_frame_selected;
+
+    window_id_t cur_sel_win;
 }mytui;
 
 /* ----------------------------------------- Functions -------------------------------------- */
@@ -24,6 +39,10 @@ void mytui_init(){
     int height, width;
     getmaxyx(stdscr, height, width);
     
+    mytui.cur_sel_win = window_id_nodes;
+    mytui.window_frame_normal = frame_normal;
+    mytui.window_frame_selected = frame_dotted;
+
     // setting up windows
     mytui.windows.main.win = newwin(0, 0, 0, 0);
     mytui.windows.main.pan = new_panel(mytui.windows.main.win);
@@ -66,11 +85,15 @@ void mytui_draw(){
     getmaxyx(stdscr, height, width);
     // clear();
 
+
+
     // main window
     wclear(mytui.windows.main.win);
     wresize(mytui.windows.main.win, height, width);
     wborder_frame(mytui.windows.main.win, frame_normal);
     mvwprintw(mytui.windows.main.win, 0, 3, "[Talkon - TCP LAN Messenger v1.0]");
+
+
 
     // navbar / menu
     wclear(mytui.windows.nav.win);
@@ -83,6 +106,8 @@ void mytui_draw(){
     wdraw_rect(mytui.windows.nav.win, 1, mytui.windows.nav.size.w - 2, 1, 1, frame_grain_thin, ' ');
     mvwprintw(mytui.windows.nav.win, 1, 3, "Configuration");
 
+
+
     // nodes / network
     wclear(mytui.windows.nodes.win);
     mytui.windows.nodes.size.h = height - 5;
@@ -90,7 +115,12 @@ void mytui_draw(){
     mytui.windows.nodes.size.y = 4;
     mytui.windows.nodes.size.x = 1;
     wsetsize(mytui.windows.nodes.win, mytui.windows.nodes.size);
-    wborder_frame(mytui.windows.nodes.win, frame_normal);
+
+    if(mytui.cur_sel_win == window_id_nodes)
+        wborder_frame(mytui.windows.nodes.win, mytui.window_frame_selected);
+    else
+        wborder_frame(mytui.windows.nodes.win, mytui.window_frame_normal);
+
     mvwprintw(mytui.windows.nodes.win, 0, 3, " Network ");
     
     wdraw_label(
@@ -101,6 +131,8 @@ void mytui_draw(){
         NULL
     );
 
+
+
     // talk / chat
     wclear(mytui.windows.talk.win);
     mytui.windows.talk.size.h = height - 5 - mytui.windows.input.size.h;
@@ -108,8 +140,15 @@ void mytui_draw(){
     mytui.windows.talk.size.y = 4;
     mytui.windows.talk.size.x = mytui.windows.nodes.size.w + 1;
     wsetsize(mytui.windows.talk.win, mytui.windows.talk.size);
-    wborder_frame(mytui.windows.talk.win, frame_normal);
+    
+    if(mytui.cur_sel_win == window_id_talk)
+        wborder_frame(mytui.windows.talk.win, mytui.window_frame_selected);
+    else
+        wborder_frame(mytui.windows.talk.win, mytui.window_frame_normal);
+
     mvwprintw(mytui.windows.talk.win, 0, 3, " Chat ");
+
+
 
     // input
     wclear(mytui.windows.input.win);
@@ -119,14 +158,45 @@ void mytui_draw(){
     mytui.windows.input.size.y = height - 7 - 1;
     mytui.windows.input.size.x = mytui.windows.nodes.size.w + 1;
     wsetsize(mytui.windows.input.win, mytui.windows.input.size);
-    wborder_frame(mytui.windows.input.win, frame_normal);
+    
+    if(mytui.cur_sel_win == window_id_input)
+        wborder_frame(mytui.windows.input.win, mytui.window_frame_selected);
+    else
+        wborder_frame(mytui.windows.input.win, mytui.window_frame_normal);
+
     mvwprintw(mytui.windows.input.win, 0, 3, " Input ");
+
+
 
     // wrefresh(nav_win);
     // wrefresh(main_win);
     // wrefresh(nodes_win);
     // wrefresh(talk_win);
     // wrefresh(input_win);
+}
+
+// logic
+void mytui_logic(int input){
+    switch(input){
+        case '\t':
+            {
+                switch(mytui.cur_sel_win){
+                    case window_id_nodes:
+                        mytui.cur_sel_win = window_id_talk;
+                        break;
+                        
+                    case window_id_talk:
+                        mytui.cur_sel_win = window_id_input;
+                        break;
+                        
+                    default:
+                    case window_id_input:
+                        mytui.cur_sel_win = window_id_nodes;
+                        break;
+                }
+            }
+            break;
+    }
 }
 
 #endif
