@@ -63,7 +63,7 @@ void mytui_init(){
     init_color(color_background, 20, 60, 80);
 
     init_pair(color_pair_normal, color_text, color_background);
-    init_pair(color_pair_border, COLOR_CYAN, COLOR_MAGENTA);
+    init_pair(color_pair_border, color_border, color_background);
     init_pair(color_pair_border_highlight, color_border_highlight, color_background);
 
     mytui.cur_sel_win = window_id_nodes;
@@ -124,11 +124,13 @@ void mytui_draw(){
     wclear(mytui.windows.main.win);
     wresize(mytui.windows.main.win, height, width);
 
-    wattron(mytui.windows.main.win, color_pair_border);
-    wborder_frame(mytui.windows.main.win, frame_normal);
-    wattroff(mytui.windows.main.win, color_pair_border);
-    
-    mvwprintw(mytui.windows.main.win, 0, 3, "[Talkon - TCP LAN Messenger v1.0]");
+    wattron(mytui.windows.main.win, COLOR_PAIR(color_pair_border));
+    {
+        wdraw_rect(mytui.windows.main.win, height, width, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.main.win, frame_normal);
+        mvwprintw(mytui.windows.main.win, 0, 3, "[Talkon - TCP LAN Messenger v1.0]");
+    }
+    wattroff(mytui.windows.main.win, COLOR_PAIR(color_pair_border));
 
 
 
@@ -139,9 +141,15 @@ void mytui_draw(){
     mytui.windows.nav.size.y = 1;
     mytui.windows.nav.size.x = 1;
     wsetsize(mytui.windows.nav.win, mytui.windows.nav.size);
-    wborder_frame(mytui.windows.nav.win, frame_normal);
-    wdraw_rect(mytui.windows.nav.win, 1, mytui.windows.nav.size.w - 2, 1, 1, frame_grain_thin, ' ');
-    mvwprintw(mytui.windows.nav.win, 1, 3, "Configuration");
+
+    wattron(mytui.windows.nav.win, COLOR_PAIR(color_pair_border));
+    {
+        wdraw_rect(mytui.windows.nav.win, mytui.windows.nav.size.h, mytui.windows.nav.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.nav.win, frame_normal);
+        wdraw_rect(mytui.windows.nav.win, 1, mytui.windows.nav.size.w - 2, 1, 1, frame_grain_thin, ' ');
+        mvwprintw(mytui.windows.nav.win, 1, 3, "Configuration");
+    }
+    wattroff(mytui.windows.nav.win, COLOR_PAIR(color_pair_border));
 
 
 
@@ -154,17 +162,19 @@ void mytui_draw(){
     wsetsize(mytui.windows.nodes.win, mytui.windows.nodes.size);
 
     if(mytui.cur_sel_win == window_id_nodes){
-        wattron(mytui.windows.nodes.win, color_pair_border_highlight);
-        wborder_frame(mytui.windows.nodes.win, mytui.window_frame_selected);
-        wattroff(mytui.windows.nodes.win, color_pair_border_highlight);
+        wattron(mytui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
+        wdraw_rect(mytui.windows.nodes.win, mytui.windows.nodes.size.h, mytui.windows.nodes.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.nodes.win, mytui.window_frame_selected);
+        wattroff(mytui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
     }
     else{
-        wattron(mytui.windows.nodes.win, color_pair_border);
-        wborder_frame(mytui.windows.nodes.win, mytui.window_frame_normal);
-        wattroff(mytui.windows.nodes.win, color_pair_border);
+        wattron(mytui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+        wdraw_rect(mytui.windows.nodes.win, mytui.windows.nodes.size.h, mytui.windows.nodes.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.nodes.win, mytui.window_frame_normal);
+        wattroff(mytui.windows.nodes.win, COLOR_PAIR(color_pair_border));
     }
-
     mvwprintw(mytui.windows.nodes.win, 0, 3, " Network ");
+
     
     wdraw_label(
         mytui.windows.nodes.win, "#1234\njoao-peterson\n192.168.1.255:4092", 
@@ -185,14 +195,16 @@ void mytui_draw(){
     wsetsize(mytui.windows.talk.win, mytui.windows.talk.size);
     
     if(mytui.cur_sel_win == window_id_talk){
-        wattron(mytui.windows.talk.win, color_pair_border_highlight);
-        wborder_frame(mytui.windows.talk.win, mytui.window_frame_selected);
-        wattroff(mytui.windows.talk.win, color_pair_border_highlight);
+        wattron(mytui.windows.talk.win, COLOR_PAIR(color_pair_border_highlight));
+        wdraw_rect(mytui.windows.talk.win, mytui.windows.talk.size.h, mytui.windows.talk.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.talk.win, mytui.window_frame_selected);
+        wattroff(mytui.windows.talk.win, COLOR_PAIR(color_pair_border_highlight));
     }
     else{
-        wattron(mytui.windows.talk.win, color_pair_border);
-        wborder_frame(mytui.windows.talk.win, mytui.window_frame_normal);
-        wattroff(mytui.windows.talk.win, color_pair_border);
+        wattron(mytui.windows.talk.win, COLOR_PAIR(color_pair_border));
+        wdraw_rect(mytui.windows.talk.win, mytui.windows.talk.size.h, mytui.windows.talk.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.talk.win, mytui.window_frame_normal);
+        wattroff(mytui.windows.talk.win, COLOR_PAIR(color_pair_border));
     }
 
     mvwprintw(mytui.windows.talk.win, 0, 3, " Chat ");
@@ -209,14 +221,16 @@ void mytui_draw(){
     wsetsize(mytui.windows.input.win, mytui.windows.input.size);
     
     if(mytui.cur_sel_win == window_id_input){
-        wattron(mytui.windows.input.win, color_pair_border_highlight);
-        wborder_frame(mytui.windows.input.win, mytui.window_frame_selected);
-        wattroff(mytui.windows.input.win, color_pair_border_highlight);
+        wattron(mytui.windows.input.win, COLOR_PAIR(color_pair_border_highlight));
+        wdraw_rect(mytui.windows.input.win, mytui.windows.input.size.h, mytui.windows.input.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.input.win, mytui.window_frame_selected);
+        wattroff(mytui.windows.input.win, COLOR_PAIR(color_pair_border_highlight));
     }
     else{
-        wattron(mytui.windows.input.win, color_pair_border);
-        wborder_frame(mytui.windows.input.win, mytui.window_frame_normal);
-        wattroff(mytui.windows.input.win, color_pair_border);
+        wattron(mytui.windows.input.win, COLOR_PAIR(color_pair_border));
+        wdraw_rect(mytui.windows.input.win, mytui.windows.input.size.h, mytui.windows.input.size.w, 0, 0, frame_normal, ' ');
+        // wborder_frame(mytui.windows.input.win, mytui.window_frame_normal);
+        wattroff(mytui.windows.input.win, COLOR_PAIR(color_pair_border));
     }
 
     mvwprintw(mytui.windows.input.win, 0, 3, " Input ");
