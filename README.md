@@ -4,4 +4,5 @@ LAN TCP TUI messenger written in C with curses.
 
 ## TODO
 
-- when resizing to shrink, the panels are dont move accordingly 
+- when resizing, add event and refresh whole window
+- add refreshing to window only when focusing on it 

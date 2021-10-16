@@ -40,8 +40,9 @@ int main(int argc, char **argv){
     mytui_init();
 
     // first render
-    mytui_draw();
     update_panels();
+    mytui_draw();
+    mytui_draw();
     refresh();
 
     // main loop
