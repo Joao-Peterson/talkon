@@ -1,4 +1,4 @@
-#include "../inc/curses_extra.h"
+#include "curses_extra.h"
 
 /* ----------------------------------------- Globals ---------------------------------------- */
 
@@ -16,7 +16,7 @@ frame_charset_t frame_solid;
 /* ----------------------------------------- Functions -------------------------------------- */
 
 // init frames
-void frames_init(void){
+void curses_extra_init(void){
     frame_charset_t tmp_frame_normal = { ACS_VLINE, ACS_VLINE, ACS_HLINE, ACS_HLINE, ACS_ULCORNER, ACS_URCORNER, ACS_LLCORNER, ACS_LRCORNER };
     frame_charset_t tmp_frame_dotted = { '|', '|', '-', '-', 126 | A_ALTCHARSET, 126 | A_ALTCHARSET, 126 | A_ALTCHARSET, 126 | A_ALTCHARSET };
     frame_charset_t tmp_frame_square_brackets = { '[', ']', ' ', ' ', ' ', ' ', ' ', ' ' };

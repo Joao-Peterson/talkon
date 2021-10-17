@@ -3,7 +3,14 @@
 # ---------------------------------------------------------------
 
 EXE := main
-SOURCES = main.c src/curses_extra.c src/strfmt.c
+
+SOURCES = main.c 
+SOURCES += src/curses_extra.c 
+SOURCES += src/strfmt.c 
+SOURCES += src/config.c 
+SOURCES += stcp/socket.c 
+SOURCES += stcp/stcp.c
+
 LIBS := lib/libdoc.a 
 
 BUILD_DIR := build/
@@ -28,7 +35,7 @@ OSFLAG :=
 ifeq ($(OS),Windows_NT)
 #		OSFLAG += -D WIN32 
 		I_FLAGS += -Ipdcurses
-		LIBS += -lpdcurses
+		LIBS += -lpdcurses -lws2_32
 	ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
 #		OSFLAG += -D AMD64
 	endif

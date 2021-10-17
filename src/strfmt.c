@@ -1,4 +1,4 @@
-#include "../inc/strfmt.h"
+#include "strfmt.h"
 
 /* ----------------------------------------- Auxiliary functions ---------------------------- */
 

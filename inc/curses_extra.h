@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include "strfmt.h"
 
+/* ----------------------------------------- Defines ---------------------------------------- */
+
 #if defined(__linux__) || defined(__unix__) || defined(__posix__)
     #include <curses.h>
     #include <panel.h>
@@ -66,7 +68,7 @@ extern frame_charset_t frame_solid;
 /* ----------------------------------------- Functions -------------------------------------- */
 
 // init frames
-void frames_init(void);
+void curses_extra_init(void);
 
 // set the size of a window
 void wsetsize(WINDOW *window, win_size_t winsize);
