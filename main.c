@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "inc/doc.h"
-#include "inc/doc_json.h"
+#include "c_doc/doc.h"
+#include "c_doc/doc_json.h"
 #include "inc/config.h"
 #include "inc/strfmt.h"
 #include "inc/curses_extra.h"

@@ -1,10 +1,9 @@
+#include <stdio.h>
+#include <errno.h>
+
 #include "config.h"
 #include "doc.h"
 #include "doc_json.h"
-
-#include <stdio.h>
-#include <sys/stat.h>
-#include <errno.h>
 
 /* ----------------------------------------- Defines ---------------------------------------- */
 
@@ -14,16 +13,23 @@
 // config filename
 #define config_filename "config.json"
 
-// path to config.json file
+// os specific switch
 #if defined(__linux__) || defined(__unix__) || defined(__posix__)
 
+    #include <sys/stat.h>
+
+    // path and filename for config
     #define home_path_var "HOME"
     #define config_path ".config/talkon"
 
 #elif defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(__NT__)
 
+    #include <direct.h>
+
+    // path and filename for config
     #define home_path_var "HOMEPATH"
     #define config_path ".talkon"
+    #define mkdir(path, mode) _mkdir(path)
 
 #elif defined(__ANDROID__)
     #error android is not supported!

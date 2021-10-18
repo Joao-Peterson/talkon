@@ -10,8 +10,13 @@ SOURCES += src/strfmt.c
 SOURCES += src/config.c 
 SOURCES += stcp/socket.c 
 SOURCES += stcp/stcp.c
+SOURCES += c_doc/parse_utils.c
+SOURCES += c_doc/base64.c
+SOURCES += c_doc/doc.c
+SOURCES += c_doc/doc_json.c
+SOURCES += c_doc/doc_print.c
 
-LIBS := lib/libdoc.a 
+LIBS :=
 
 BUILD_DIR := build/
 DIST_DIR := dist/
@@ -20,7 +25,7 @@ CC := gcc
 BUILD_C_FLAGS = -g
 RELEASE_C_FLAGS = -O2
 C_FLAGS =
-I_FLAGS = -Iinc
+I_FLAGS = -Iinc -Istcp -Ic_doc
 L_FLAGS = -Llib
 
 # ---------------------------------------------------------------
@@ -56,7 +61,7 @@ else
 #		OSFLAG += -D AMD64
 	endif
 		ifneq ($(filter %86,$(UNAME_P)),)
-#	OSFLAG += -D IA32
+#		OSFLAG += -D IA32
 		endif
 	ifneq ($(filter arm%,$(UNAME_P)),)
 #		OSFLAG += -D ARM

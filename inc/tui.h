@@ -55,12 +55,6 @@ struct tui_t{
 // init windows and main global state
 void tui_init(void){    
 
-    tui.config = doc_json_open("config.json");
-    if(tui.config == NULL){
-        printf("config.json file not found!\n");
-        exit(-1);
-    }
-
     int height, width;
     getmaxyx(stdscr, height, width);
     // colors
