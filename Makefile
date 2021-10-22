@@ -1,4 +1,13 @@
 # ---------------------------------------------------------------
+# Commands:
+# 	build 		: build lib objects and test file for testing 
+# 	release 	: build lib objects, archive and organize the lib files for use in the 'dist/' folder
+# 	dist 		: dist just organizes the lib files for use in the 'dist/' folder
+# 	clear 		: clear compiled executables
+# 	clearall 	: clear compiled objects and lib files in 'build/' and 'dist/' folders as well as executables
+# ---------------------------------------------------------------
+
+# ---------------------------------------------------------------
 # User area
 # ---------------------------------------------------------------
 
@@ -8,6 +17,9 @@ SOURCES = main.c
 SOURCES += src/curses_extra.c 
 SOURCES += src/strfmt.c 
 SOURCES += src/config.c 
+SOURCES += src/nodes.c 
+SOURCES += src/receiver.c 
+SOURCES += src/log.c 
 SOURCES += stcp/socket.c 
 SOURCES += stcp/stcp.c
 SOURCES += c_doc/parse_utils.c
@@ -16,17 +28,17 @@ SOURCES += c_doc/doc.c
 SOURCES += c_doc/doc_json.c
 SOURCES += c_doc/doc_print.c
 
-LIBS :=
+LIBS := lib/libdoc.a -pthread
 
 BUILD_DIR := build/
 DIST_DIR := dist/
 
 CC := gcc
-BUILD_C_FLAGS = -g
-RELEASE_C_FLAGS = -O2
+BUILD_C_FLAGS = -g 
+RELEASE_C_FLAGS = -O2 
 C_FLAGS =
 I_FLAGS = -Iinc -Istcp -Ic_doc
-L_FLAGS = -Llib
+L_FLAGS = -L./
 
 # ---------------------------------------------------------------
 # Do not alter anything below!
@@ -83,7 +95,7 @@ $(BUILD_DIR)%.o : %.c
 	$(CC) $(C_FLAGS) $(I_FLAGS) -c $< -o $@
 
 $(EXE): $(OBJS_BUILD) 
-	$(CC) $^ $(LIBS) -o $@
+	$(CC) $(L_FLAGS) $^ $(LIBS) -o $@
 
 dist : $(OBJS_BUILD)
 	@mkdir -p $(DIST_DIR)

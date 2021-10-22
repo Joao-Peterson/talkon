@@ -3,6 +3,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <pthread.h>
+
+#include "doc.h"
+#include "doc_json.h"
+#include "config.h"
+#include "strfmt.h"
+#include "curses_extra.h"
+#include "tui.h"
+#include "simple_tcp_msg.h"
+#include "receiver.h"
+#include "log.h"
 
 #include "c_doc/doc.h"
 #include "c_doc/doc_json.h"
@@ -13,273 +24,22 @@
 #include "inc/simple_tcp_msg.h"
 #include "stcp/stcp.h"
 
-void stcp_error_cb(stcp_error err, void *data){
-    const char *msg = NULL; 
-    
-    switch(err){
-        case STCP_UNKNOWN_ERROR:
-            msg = "STCP_UNKNOWN_ERROR";
-            break;                
-                        
-        case STCP_FUNCTION_INTERRUPTED:
-            msg = "STCP_FUNCTION_INTERRUPTED";
-            break;         
-                
-        case STCP_INVALID_FILE_HANDLE:
-            msg = "STCP_INVALID_FILE_HANDLE";
-            break;          
-                
-        case STCP_PERMISSION_DENIED:
-            msg = "STCP_PERMISSION_DENIED";
-            break;            
-                    
-        case STCP_INVALID_POINTER:
-            msg = "STCP_INVALID_POINTER";
-            break;              
-                    
-        case STCP_INVALID_ARGUMENT:
-            msg = "STCP_INVALID_ARGUMENT";
-            break;             
-                    
-        case STCP_TOO_MANY_SOCKETS:
-            msg = "STCP_TOO_MANY_SOCKETS";
-            break;             
-                    
-        case STCP_RESOURCE_UNAVAILABLE:
-            msg = "STCP_RESOURCE_UNAVAILABLE";
-            break;         
-                
-        case STCP_BLOCKED_BY_CALLER:
-            msg = "STCP_BLOCKED_BY_CALLER";
-            break;            
-                    
-        case STCP_BLOCKED_BY_CALLEE:
-            msg = "STCP_BLOCKED_BY_CALLEE";
-            break;            
-                    
-        case STCP_INVALID_SOCKET:
-            msg = "STCP_INVALID_SOCKET";
-            break;               
-                    
-        case STCP_INVALID_DESTINATION:
-            msg = "STCP_INVALID_DESTINATION";
-            break;          
-                
-        case STCP_MESSAGE_TOO_LONG:
-            msg = "STCP_MESSAGE_TOO_LONG";
-            break;             
-                    
-        case STCP_INVALID_PROTOCOL:
-            msg = "STCP_INVALID_PROTOCOL";
-            break;             
-                    
-        case STCP_INVALID_PROTOCOL_OPTION:
-            msg = "STCP_INVALID_PROTOCOL_OPTION";
-            break;      
-            
-        case STCP_PROTOCOL_NOT_SUPPORTED:
-            msg = "STCP_PROTOCOL_NOT_SUPPORTED";
-            break;       
-            
-        case STCP_SOCKET_NOT_SUPPORTED:
-            msg = "STCP_SOCKET_NOT_SUPPORTED";
-            break;         
-                
-        case STCP_OPERATION_NOT_SUPPORTED:
-            msg = "STCP_OPERATION_NOT_SUPPORTED";
-            break;      
-            
-        case STCP_PROTOCOL_FAMILY_NOT_SUPPORTED:
-            msg = "STCP_PROTOCOL_FAMILY_NOT_SUPPORTED";
-            break;
-        
-        case STCP_ADDRESS_FAMILY_NOT_SUPPORTED:
-            msg = "STCP_ADDRESS_FAMILY_NOT_SUPPORTED";
-            break; 
-        
-        case STCP_ADDRESS_IN_USE:
-            msg = "STCP_ADDRESS_IN_USE";
-            break;               
-                    
-        case STCP_ADDRESS_NOT_AVAILABLE:
-            msg = "STCP_ADDRESS_NOT_AVAILABLE";
-            break;        
-                
-        case STCP_NETWORK_DOWN:
-            msg = "STCP_NETWORK_DOWN";
-            break;                 
-                        
-        case STCP_NETWORK_UNREACHABLE:
-            msg = "STCP_NETWORK_UNREACHABLE";
-            break;          
-                
-        case STCP_NETWORK_RESET:
-            msg = "STCP_NETWORK_RESET";
-            break;                
-                        
-        case STCP_CONNECTION_ABORTED:
-            msg = "STCP_CONNECTION_ABORTED";
-            break;           
-                
-        case STCP_CONNECTION_RESET:
-            msg = "STCP_CONNECTION_RESET";
-            break;             
-                    
-        case STCP_NO_BUFFER_SPACE:
-            msg = "STCP_NO_BUFFER_SPACE";
-            break;              
-                    
-        case STCP_SOCKET_ALREADY_CONNECTED:
-            msg = "STCP_SOCKET_ALREADY_CONNECTED";
-            break;     
-            
-        case STCP_SOCKET_NOT_CONNECTED:
-            msg = "STCP_SOCKET_NOT_CONNECTED";
-            break;         
-                
-        case STCP_SOCKET_SHUTDOWN:
-            msg = "STCP_SOCKET_SHUTDOWN";
-            break;              
-                    
-        case STCP_TOO_MANY_REFERENCES:
-            msg = "STCP_TOO_MANY_REFERENCES";
-            break;          
-                
-        case STCP_CONNECTION_TIMED_OUT:
-            // msg = "STCP_CONNECTION_TIMED_OUT";
-            break;         
-                
-        case STCP_CONNECTION_REFUSED:
-            msg = "STCP_CONNECTION_REFUSED";
-            break;           
-                
-        case STCP_INVALID_NAME:
-            msg = "STCP_INVALID_NAME";
-            break;                 
-                        
-        case STCP_NAME_TOO_LONG:
-            msg = "STCP_NAME_TOO_LONG";
-            break;                
-                        
-        case STCP_HOST_DOWN:
-            msg = "STCP_HOST_DOWN";
-            break;                    
-                            
-        case STCP_HOST_UNREACHABLE:
-            msg = "STCP_HOST_UNREACHABLE";
-            break;             
-                    
-        case STCP_DIRECTORY_NOT_EMPTY:
-            msg = "STCP_DIRECTORY_NOT_EMPTY";
-            break;          
-                
-        case STCP_TOO_MANY_PROCESSES:
-            msg = "STCP_TOO_MANY_PROCESSES";
-            break;           
-                
-        case STCP_TOO_MANY_USERS:
-            msg = "STCP_TOO_MANY_USERS";
-            break;               
-                    
-        case STCP_OUT_OF_DISK_SPACE:
-            msg = "STCP_OUT_OF_DISK_SPACE";
-            break;            
-                    
-        case STCP_OLD_HANDLE:
-            msg = "STCP_OLD_HANDLE";
-            break;                   
-                        
-        case STCP_RESOURCE_NOT_LOCAL:
-            msg = "STCP_RESOURCE_NOT_LOCAL";
-            break;  
-
-        default:
-            msg = "Unknow STCP error!";         
-    }
-
-    if(msg != NULL)
-        printf("%s\n", msg);        
-}
-
 int main(int argc, char **argv){
 
-    // if(!stcp_initialize()){
-    //     printf("Error init stcp\n");
-    //     exit(-1);
-    // }
+    config_init();
+    
+    doc_set(config_doc, "port", int, atoi(argv[1]));
 
-    // stcp_set_error_callback(&stcp_error_cb, NULL);
+    pthread_t receiver_thread;
+    if(pthread_create(&receiver_thread, NULL, &receiver_listen, NULL) < 0){
+        log_error("Thread creation failed\n");
+        return -1;
+    }
 
-    // stcp_address *server_addr = stcp_create_address_ipv4("192.168.0.150", 5003);
-    // stcp_server *server = stcp_create_server(server_addr, 10);
+    pthread_join(receiver_thread, NULL);
+    
+    config_save();
 
-    // if(server == NULL){
-    //     printf("Error in server init\n");
-    //     exit(-1);
-    // }
-
-    // // 
-    // while(1){
-
-    //     stcp_channel *client_in = stcp_accept_channel(server, 100);
-
-    //     // respond to client
-    //     if(client_in != NULL){
-
-    //         char buffer[10000];
-
-    //         while(1){
-    //             stcp_receive(client_in, buffer, 10000, 100);
-
-    //             if(buffer[0] != '{'){
-
-    //                 continue;        
-    //             }
-    //             else{
-                    
-    //                 doc *packet_in = doc_json_parse(buffer);
-
-    //                 int msg_type = doc_get(packet_in, "type", int);
-
-    //                 switch(msg_type){
-    //                     case msg_type_ping:
-    //                         doc *res = doc_new(
-    //                         "res", dt_obj,
-    //                             "type", dt_int32, msg_type_ping,
-    //                             "info", dt_obj, 
-    //                                 "name", dt_const_string, "talkon_client_#1", 18ULL,
-    //                             ";", 
-    //                         ";");
-
-    //                         char *res_str = doc_json_stringify(res);
-
-    //                         stcp_send(client_in, res_str, strlen(res_str), 100);
-
-    //                         free(res_str);
-    //                         doc_delete(res, ".");
-    //                         break;
-
-    //                     // error type
-    //                     case msg_type_message:
-    //                     case msg_type_status:
-    //                     case 0:
-    //                     default:
-    //                         break;
-    //                 }  
-
-    //                 doc_delete(packet_in, ".");
-                    
-    //                 break;
-    //             }
-    //         }
-
-    //         stcp_free_channel(client_in);
-    //     }
-    // }
-
-    // stcp_free_address(server_addr);
-    // stcp_free_server(server);
-	// stcp_terminate();
 
     // initscr();
     // // cbreak();
@@ -302,8 +62,6 @@ int main(int argc, char **argv){
 
     // start_color();
 
-    config_init();
-    config_save();
     // curses_extra_init();
     // tui_init();
 

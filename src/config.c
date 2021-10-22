@@ -42,7 +42,7 @@
 /* ----------------------------------------- Globals ---------------------------------------- */
 
 // global config pointer
-doc *config = NULL;
+doc *config_doc = NULL;
 
 /* ----------------------------------------- Private functions ------------------------------- */
 
@@ -85,7 +85,7 @@ void config_save(void){
     
     snprintf(path, 500, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
 
-    doc_json_save(config, path);
+    doc_json_save(config_doc, path);
 }
 
 // init config by file or default 
@@ -95,14 +95,14 @@ void config_init(void){
     snprintf(path, 500, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
 
     if(check_fs(path)){
-        config = doc_json_open(path);
+        config_doc = doc_json_open(path);
     }
     else{
-        config = doc_json_parse(config_default_json);
+        config_doc = doc_json_parse(config_default_json);
         config_save();
     }
 
-    if(config == NULL){
+    if(config_doc == NULL){
         printf("config.json file: %s\n", doc_get_error_msg());
         exit(-1);
     }
