@@ -22,11 +22,6 @@ SOURCES += src/receiver.c
 SOURCES += src/log.c 
 SOURCES += stcp/socket.c 
 SOURCES += stcp/stcp.c
-SOURCES += c_doc/parse_utils.c
-SOURCES += c_doc/base64.c
-SOURCES += c_doc/doc.c
-SOURCES += c_doc/doc_json.c
-SOURCES += c_doc/doc_print.c
 
 LIBS := lib/libdoc.a -pthread
 

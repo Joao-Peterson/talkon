@@ -15,14 +15,14 @@
 #include "receiver.h"
 #include "log.h"
 
-#include "c_doc/doc.h"
-#include "c_doc/doc_json.h"
-#include "inc/config.h"
-#include "inc/strfmt.h"
-#include "inc/curses_extra.h"
-#include "inc/tui.h"
-#include "inc/simple_tcp_msg.h"
-#include "stcp/stcp.h"
+#include "doc.h"
+#include "doc_json.h"
+#include "config.h"
+#include "strfmt.h"
+#include "curses_extra.h"
+#include "tui.h"
+#include "simple_tcp_msg.h"
+#include "stcp.h"
 
 int main(int argc, char **argv){
 
