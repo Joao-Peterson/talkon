@@ -250,6 +250,7 @@ void receiver_respond(stcp_channel *client, char *data){
 
     if(packet_in == NULL){
         log_error("Data received is not a json format\n");
+        log_error("\"%s\"\n", data);
         return;
     }
 
@@ -263,19 +264,27 @@ void receiver_respond(stcp_channel *client, char *data){
     switch(msg_type){
         case msg_type_ping:
             {
+                char *name = config_get("name", char*);
+                
                 doc *res = doc_new(
                 "res", dt_obj,
-                    "type", dt_int32, msg_type_ping,
+                    "type", dt_int32, msg_type_info,
                     "info", dt_obj, 
-                        "name", dt_const_string, "talkon_client_#1", 18ULL,
+                        "name", dt_const_string, name, (size_t)(strlen(name) + 1),
                     ";", 
                 ";");
 
                 char *res_str = doc_json_stringify(res);
 
-                stcp_send(client, res_str, strlen(res_str), timeout);
+                if(res_str == NULL){
+                    res_str = "{\"type\": 0}";
+                    stcp_send(client, res_str, strlen(res_str), timeout);
+                }
+                else{
+                    stcp_send(client, res_str, strlen(res_str), timeout);
+                    free(res_str);
+                }
 
-                free(res_str);
                 doc_delete(res, ".");
             }
             break;
