@@ -1,7 +1,7 @@
 #ifndef _CONFIG_HEADER_
 #define _CONFIG_HEADER_
 
-#include "doc.h"
+#include <doc.h>
 
 // global config pointer
 extern doc *config_doc;
@@ -11,6 +11,9 @@ void config_init(void);
 
 // save config file
 void config_save(void);
+
+// returns the path to the talkon config folder, DO NOT FREE
+char *config_get_config_folder_path(void);
 
 // get config by name
 #define config_get(name, type) (*(type*)((void*)doc_get_ptr(config_doc, name) + sizeof(doc)))

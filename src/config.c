@@ -2,10 +2,13 @@
 #include <errno.h>
 
 #include "config.h"
-#include "doc.h"
-#include "doc_json.h"
+#include <doc.h>
+#include <doc_json.h>
 
 /* ----------------------------------------- Defines ---------------------------------------- */
+
+// max len gor buffer path
+#define buffer_path_len 500
 
 // default json file
 #define config_default_json "{\"name\": \"talkinho\",\"port\":5002}"
@@ -44,6 +47,8 @@
 // global config pointer
 doc *config_doc = NULL;
 
+char *config_folder_path = NULL;
+
 /* ----------------------------------------- Private functions ------------------------------- */
 
 // detect file existence
@@ -76,23 +81,33 @@ int check_fs(char *filename_directory){
 
 // save config file
 void config_save(void){
-    char path[500];
-    snprintf(path, 500, "%s/%s", getenv(home_path_var), config_path);
+    char path[buffer_path_len];
+    snprintf(path, buffer_path_len, "%s/%s", getenv(home_path_var), config_path);
 
     if(!check_fs(path)){
         mkdir(path, S_IRWXU);
     }
     
-    snprintf(path, 500, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
+    snprintf(path, buffer_path_len, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
 
     doc_json_save(config_doc, path);
+}
+
+// returns the path to the talkon config folder, DO NOT FREE
+char *config_get_config_folder_path(void){
+    if(config_folder_path == NULL){
+        config_folder_path = calloc(buffer_path_len + 1, sizeof(char));
+        snprintf(config_folder_path, buffer_path_len, "%s/%s", getenv(home_path_var), config_path);
+    }
+    
+    return config_folder_path;
 }
 
 // init config by file or default 
 void config_init(void){
 
-    char path[500];
-    snprintf(path, 500, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
+    char path[buffer_path_len];
+    snprintf(path, buffer_path_len, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
 
     if(check_fs(path)){
         config_doc = doc_json_open(path);

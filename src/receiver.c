@@ -8,8 +8,8 @@
 #include "stcp.h"
 #include "simple_tcp_msg.h"
 #include "log.h"
-#include "doc.h"
-#include "doc_json.h"
+#include <doc.h>
+#include <doc_json.h>
 
 /* ----------------------------------------- Defines ------------------------------------------ */
 
@@ -294,6 +294,14 @@ void receiver_respond(stcp_channel *client, char *data){
         case msg_type_status:
         case 0:
         default:
+            {
+                log_error("type received (%i) is not a defined type\n", msg_type);
+
+                char buffer[500];
+                snprintf(buffer, 500, "type received (%i) is not a defined type\n", msg_type);
+                
+                stcp_send(client, buffer, strlen(buffer), timeout);
+            }
             break;
     }  
 
@@ -303,48 +311,41 @@ void receiver_respond(stcp_channel *client, char *data){
 // receiver function that listens on network and respond accordingly
 void *receiver_listen(void *data){
     
-    receiver_t *receiver = receiver_init();
-    if(receiver == NULL){
-        log_error("Receiver init failed\n");
-        return NULL;
-    }
+    receiver_t *receiver = (receiver_t*)data;
 
-    while(1){
+    stcp_channel *client_in = stcp_accept_channel(receiver->server, timeout);
 
-        stcp_channel *client_in = stcp_accept_channel(receiver->server, timeout);
+    // respond to client
+    if(client_in != NULL){
 
-        // respond to client
-        if(client_in != NULL){
+        int received_msg_size = 1;
+        char *received_msg = calloc(received_msg_size, sizeof(char));
 
-            int received_msg_size = 1;
-            char *received_msg = calloc(received_msg_size, sizeof(char));
+        char buffer[buffer_read_size];
+        int received_bytes;
 
-            char buffer[buffer_read_size];
-            int received_bytes;
-
-            // receive until receive d bytes are less than buffer size
-            do{
-                received_bytes = stcp_receive(client_in, buffer, buffer_read_size, timeout);
-                
-                if(received_bytes == 0){
-                    // log_error("stcp_receive() error\n");
-                    // free(received_msg);
-                    // received_msg == NULL;
-                    continue;
-                }
-
-                received_msg_size += received_bytes;
-                received_msg = realloc(received_msg, received_msg_size);
-                strcat(received_msg, buffer);
-
-            }while(received_bytes == buffer_read_size);
-
-            if(received_msg != NULL){
-                receiver_respond(client_in, received_msg);
-                free(received_msg);
+        // receive until receive d bytes are less than buffer size
+        do{
+            received_bytes = stcp_receive(client_in, buffer, buffer_read_size, timeout);
+            
+            if(received_bytes == 0){
+                // log_error("stcp_receive() error\n");
+                // free(received_msg);
+                // received_msg == NULL;
+                continue;
             }
 
-            stcp_free_channel(client_in);
+            received_msg_size += received_bytes;
+            received_msg = realloc(received_msg, received_msg_size);
+            strcat(received_msg, buffer);
+
+        }while(received_bytes == buffer_read_size);
+
+        if(received_msg != NULL){
+            receiver_respond(client_in, received_msg);
+            free(received_msg);
         }
+
+        stcp_free_channel(client_in);
     }
 }

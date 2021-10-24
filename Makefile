@@ -17,13 +17,13 @@ SOURCES = main.c
 SOURCES += src/curses_extra.c 
 SOURCES += src/strfmt.c 
 SOURCES += src/config.c 
-SOURCES += src/nodes.c 
+SOURCES += src/explorer.c 
 SOURCES += src/receiver.c 
 SOURCES += src/log.c 
 SOURCES += stcp/socket.c 
 SOURCES += stcp/stcp.c
 
-LIBS := lib/libdoc.a -pthread
+LIBS := -ldoc -lplibsysstatic -pthread -ldl
 
 BUILD_DIR := build/
 DIST_DIR := dist/
@@ -32,7 +32,7 @@ CC := gcc
 BUILD_C_FLAGS = -g 
 RELEASE_C_FLAGS = -O2 
 C_FLAGS =
-I_FLAGS = -Iinc -Istcp -Ic_doc
+I_FLAGS = -Iinc -Istcp
 L_FLAGS = -L./
 
 # ---------------------------------------------------------------

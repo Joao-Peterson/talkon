@@ -10,16 +10,16 @@
 
 /* ----------------------------------------- Prototypes --------------------------------------- */
 
-void logprintf(FILE *out, const char *format, ...);
+void logprintf(const char *format, ...);
 
 void log_set_output_file(char *filename, char *restric_mode);
 
 /* ----------------------------------------- Macros ------------------------------------------- */
 
-#define log(format_string, ...)         logprintf(stdout, LOG_FILE_LINE_STR format_string,            __FILE__, __LINE__, ##__VA_ARGS__)
+#define log(format_string, ...)         logprintf(LOG_FILE_LINE_STR format_string,            __FILE__, __LINE__, ##__VA_ARGS__)
 
-#define log_debug(format_string, ...)   logprintf(stdout, LOG_FILE_LINE_STR "[DEBUG] " format_string, __FILE__, __LINE__, ##__VA_ARGS__)
+#define log_debug(format_string, ...)   logprintf(LOG_FILE_LINE_STR "[DEBUG] " format_string, __FILE__, __LINE__, ##__VA_ARGS__)
 
-#define log_error(format_string, ...)   logprintf(stdout, LOG_FILE_LINE_STR "[ERROR] " format_string, __FILE__, __LINE__, ##__VA_ARGS__)
+#define log_error(format_string, ...)   logprintf(LOG_FILE_LINE_STR "[ERROR] " format_string, __FILE__, __LINE__, ##__VA_ARGS__)
 
 #endif
