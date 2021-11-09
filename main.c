@@ -56,23 +56,22 @@ void *receiver_thread_routine(void *data){
 
 int main(int argc, char **argv){
 
-    p_libsys_init();
-    p_libsys_shutdown();
-
     // main variables
     receiver_thread_interface_t receiver_thread_interface = {
         .run_flag = 1
     };
 
+    // init routines
+    p_libsys_init();
+    config_init();
+
+    // set port 
+    doc_set(config_doc, "port", int, atoi(argv[1]));
+    
     // log file
     char buffer[500];
     snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
     log_set_output_file(buffer, "w+");
-
-    // read config file
-    config_init();
-    
-    doc_set(config_doc, "port", int, atoi(argv[1]));
 
     // create threads for messaging
     pthread_t receiver_thread;
@@ -121,6 +120,7 @@ int main(int argc, char **argv){
             endwin();
             pthread_join(receiver_thread, NULL);
             config_save();
+            p_libsys_shutdown();
 
             printf("An error was occured while starting the TCP comunication.\n");
             printf("Please open your log file in: \"%s\"\nfor more details.\n", config_get_config_folder_path());
@@ -144,7 +144,8 @@ int main(int argc, char **argv){
                     receiver_thread_interface.run_flag = 0;
                     pthread_join(receiver_thread, NULL);
                     config_save();
-                
+                    p_libsys_shutdown();
+
                     // close rfopen() of stderr by log.c
                     // works without it, lets see how long 
                     // fclose(stderr);

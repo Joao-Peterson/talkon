@@ -1,12 +1,12 @@
 #ifndef _RECEIVER_HEADER_
 #define _RECEIVER_HEADER_
 
-#include "stcp.h"
+#include <plibsys.h>
 
 // receiver struct
 typedef struct{
-    stcp_address *server_addr;
-    stcp_server *server;
+    PSocketAddress *server_addr;
+    PSocket *server;
 }receiver_t;
 
 // initialize receiver
