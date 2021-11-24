@@ -28,19 +28,11 @@
 
 #include <plibsys.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 
 /* ----------------------------------------- Struct's ----------------------------------------- */
 
-// data type for interfacing with the receiver thread
-typedef struct{
-    int run_flag;
-}receiver_thread_interface_t;
-
 /* ----------------------------------------- Globals ------------------------------------------ */
-
-receiver_thread_interface_t receiver_thread_interface = {
-    .run_flag = 1
-};
 
 pthread_t receiver_thread;
 
@@ -48,17 +40,15 @@ pthread_t receiver_thread;
 
 // receiver thread daemon routine
 void *receiver_thread_routine(void *data){
-    receiver_thread_interface_t *interface = &receiver_thread_interface;
 
     receiver_t *receiver = receiver_init();
     
     if(receiver == NULL){
         log_error("Receiver init failed\n");
-        interface->run_flag = 0;
         return NULL;
     }
 
-    while(interface->run_flag){
+    while(1){
         receiver_listen(receiver);
     }
 
@@ -70,8 +60,8 @@ void *receiver_thread_routine(void *data){
 // err and die
 void static inline err_and_die(void){
     endwin();
-    receiver_thread_interface.run_flag = 0;
-    pthread_join(receiver_thread, NULL);
+    // pthread_join(receiver_thread, NULL);
+    pthread_cancel(receiver_thread);
     config_save();
     p_libsys_shutdown();
 }
@@ -97,7 +87,7 @@ int main(int argc, char **argv){
         return -1;
     }
     
-    // initialize curses
+    // // initialize curses
     // initscr();
     // // cbreak();
     // timeout(-1);
@@ -131,15 +121,6 @@ int main(int argc, char **argv){
     // main loop
     while(1){
         
-        // ----------------------- daemons ---------------------
-
-        if(receiver_thread_interface.run_flag == 0){
-            log_error("An error was occured while starting the TCP comunication.\n");
-            log_error("Please open your log file in: \"%s\"\nfor more details.\n", config_get_config_folder_path());
-            err_and_die();
-            return 0;
-        }
-        
         // ----------------------- draw ------------------------
         // tui_draw();
         // update_panels();
@@ -171,14 +152,49 @@ int main(int argc, char **argv){
                     PSocket *socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, NULL);
                     p_socket_bind(socket, addr, 0, NULL);
 
-                    // int flag = 1;
-                    // setsockopt(((PSocket_receiver_t*)socket)->fd, IPPROTO_IP, IP_MULTICAST_TTL, (void*)(&flag), sizeof(flag));
+                    int flag = 1;
+                    setsockopt(p_socket_get_fd(socket), IPPROTO_IP, IP_MULTICAST_LOOP, (void*)(&flag), sizeof(flag));
 
-                    // PSocketAddress *multicast = p_socket_address_new(config_get("udp_group", char*), 5001);
-                    PSocketAddress *multicast = p_socket_address_new("127.0.0.1", 5001);
-                    psize res = p_socket_send_to(socket, multicast, "MULTICAST WORKSSSSS!!", 22ULL, NULL);
+                    PSocketAddress *multicast = p_socket_address_new(config_get("udp_group", char*), 5001);
+                    psize res = p_socket_send_to(socket, multicast, "{\"type\": 1}", 14ULL, NULL);
+                    // psize res = p_socket_send_to(socket, multicast, "MULTICAST!!!!", 14ULL, NULL);
                     log_debug("sended: [%i]\n", res);
+
+                    int received_msg_size = 1;
+                    char *received_msg = calloc(received_msg_size, sizeof(char));
+
+                    char buffer[1024];
+                    int received_bytes;
+
+                    PSocketAddress *remote_address = NULL;
+                    // receive until receive d bytes are less than buffer size
+                    do{
+                        if(remote_address != NULL)
+                            p_socket_address_free(remote_address);
+                        
+                        received_bytes = p_socket_receive_from(socket, &remote_address, buffer, 1024, NULL);
+                        if(received_bytes == 0){
+                            continue;
+                        }
+
+                        received_msg_size += received_bytes;
+                        received_msg = realloc(received_msg, received_msg_size);
+                        strcat(received_msg, buffer);
+
+                    }while(received_bytes == 1024);
+
+                    if(received_msg != NULL){
+                        log("Received from (%s:%i): %s.\n", 
+                            p_socket_address_get_address(remote_address), 
+                            p_socket_address_get_port(remote_address), 
+                            received_msg
+                        );
+
+                        free(received_msg);
+                    }
+
                     p_socket_free(socket);
+                    p_socket_address_free(remote_address);
                     p_socket_address_free(addr);
                     p_socket_address_free(multicast);
                 }

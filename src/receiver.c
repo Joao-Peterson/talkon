@@ -16,6 +16,15 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+// IP_MULTICAST_TTL 
+// https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
+// Multicast options
+// https://tldp.org/HOWTO/Multicast-HOWTO-6.html
+// IP optioons
+// https://www.man7.org/linux/man-pages/man7/ip.7.html
+// plibsys sockets
+// https://saprykin.github.io/plibsys-docs/psocket_8h.html
+
 /* ----------------------------------------- Defines ------------------------------------------ */
 
 #define buffer_read_size 1024
@@ -42,7 +51,7 @@ receiver_t *receiver_init(void){
             p_socket_free(receiver->socket);
 
         // create addres struct
-        if((receiver->address = p_socket_address_new("127.0.0.1", retry+udp_port)) == NULL){
+        if((receiver->address = p_socket_address_new_any(P_SOCKET_FAMILY_INET, retry+udp_port)) == NULL){
             if(retry == port_retry_num){
                 log_error("Error creating address for localhost\n");
                 return NULL;
@@ -55,7 +64,6 @@ receiver_t *receiver_init(void){
 
         // create socket on ip and port
         receiver->socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, &err);
-
         if(receiver->socket == NULL || err != NULL){
             if(err != NULL){
                 log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
@@ -74,7 +82,7 @@ receiver_t *receiver_init(void){
         }
 
         // bind
-        pboolean res = p_socket_bind(receiver->socket, receiver->address, true, &err);
+        pboolean res = p_socket_bind(receiver->socket, receiver->address, false, &err);
         if(res == false || err != NULL){
             if(err != NULL){
                 log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
@@ -104,8 +112,17 @@ receiver_t *receiver_init(void){
     multicast_req.imr_interface.s_addr = htonl(INADDR_ANY);
 
     // register the request
-    if((setsockopt(((PSocket_receiver_t*)receiver->socket)->fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_req , sizeof(multicast_req))) < 0){
+    if((setsockopt(p_socket_get_fd(receiver->socket), IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_req , sizeof(multicast_req))) < 0){
         log_error("Error setting up the udp multicast group join request\n");
+        p_socket_address_free(receiver->address);
+        p_socket_free(receiver->socket);
+        return NULL;
+    }
+
+    // enable loopback
+    int loopback = 1;
+    if((setsockopt(p_socket_get_fd(receiver->socket), IPPROTO_IP, IP_MULTICAST_LOOP, &loopback , sizeof(loopback))) < 0){
+        log_error("Error setting up the udp multicast loopback option\n");
         p_socket_address_free(receiver->address);
         p_socket_free(receiver->socket);
         return NULL;
@@ -123,7 +140,7 @@ void receiver_delete(receiver_t *receiver){
 }
 
 // responds to the message received  
-void receiver_respond(PSocket *client, char *data){
+void receiver_respond(PSocket *client, PSocketAddress *remote_address, char *data){
     doc *packet_in = doc_json_parse(data);
 
     if(packet_in == NULL){
@@ -156,10 +173,10 @@ void receiver_respond(PSocket *client, char *data){
 
                 if(res_str == NULL){
                     res_str = "{\"type\": 0}";
-                    // psocket(client, res_str, strlen(res_str), timeout);
+                    p_socket_send_to(client, remote_address, res_str, strlen(res_str), NULL);
                 }
                 else{
-                    // stcp_send(client, res_str, strlen(res_str), timeout);
+                    p_socket_send_to(client, remote_address, res_str, strlen(res_str), NULL);
                     free(res_str);
                 }
 
@@ -177,8 +194,8 @@ void receiver_respond(PSocket *client, char *data){
 
                 char buffer[500];
                 snprintf(buffer, 500, "type received (%i) is not a defined type\n", msg_type);
-                
-                // stcp_send(client, buffer, strlen(buffer), timeout);
+
+                p_socket_send_to(client, remote_address, buffer, strlen(buffer), NULL);
             }
             break;
     }  
@@ -191,18 +208,21 @@ void *receiver_listen(void *data){
     
     receiver_t *receiver = (receiver_t*)data;
 
-    // respond to client
     int received_msg_size = 1;
     char *received_msg = calloc(received_msg_size, sizeof(char));
 
     char buffer[buffer_read_size];
     int received_bytes;
 
+    PSocketAddress *remote_address = NULL;
+
     // receive until receive d bytes are less than buffer size
     do{
-        // log_debug("before receive\n");
-        received_bytes = p_socket_receive(receiver->socket, buffer, buffer_read_size, NULL);
-        // log_debug("after receive\n");
+        if(remote_address != NULL)
+            p_socket_address_free(remote_address);
+
+        received_bytes = p_socket_receive_from(receiver->socket, &remote_address, buffer, buffer_read_size, NULL);
+
         if(received_bytes == 0){
             // log_error("stcp_receive() error\n");
             // free(received_msg);
@@ -217,8 +237,16 @@ void *receiver_listen(void *data){
     }while(received_bytes == buffer_read_size);
 
     if(received_msg != NULL){
-        log("Broadcast: %s.\n", received_msg);
-        // receiver_respond(client_in, received_msg);
+        log("Multicast from (%s:%i): %s.\n", 
+            p_socket_address_get_address(remote_address), 
+            p_socket_address_get_port(remote_address), 
+            received_msg
+        );
+        receiver_respond(receiver->socket, remote_address, received_msg);
+        
+        if(remote_address != NULL)
+            p_socket_address_free(remote_address);
+
         free(received_msg);
     }
 

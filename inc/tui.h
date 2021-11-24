@@ -2,6 +2,8 @@
 #define _TUI_HEADER_
 
 #include "curses_extra.h"
+#include "strfmt.h"
+#include <doc.h>
 
 /* ----------------------------------------- Enums ------------------------------------------ */
 
@@ -154,7 +156,7 @@ void nodes_window(void){
         wdraw_label(
             tui.windows.nodes.win, "#1234\njoao-peterson\n192.168.1.255:4092", 
             1, 1, 5, 5, tui.windows.nodes.size.w - 2, tui.windows.nodes.size.w - 2,
-            strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot,
+            (strfmt_t)(strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
             frame_dotted, ' ',
             NULL
         );
