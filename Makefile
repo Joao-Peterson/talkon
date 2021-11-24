@@ -32,7 +32,7 @@ CC := gcc
 BUILD_C_FLAGS = -g 
 RELEASE_C_FLAGS = -O2 
 C_FLAGS =
-I_FLAGS = -Iinc -Istcp
+I_FLAGS = -Iinc -Istcp -I/usr/local/include/plibsys
 L_FLAGS = -L./
 
 # ---------------------------------------------------------------

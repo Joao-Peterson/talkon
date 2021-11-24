@@ -3,10 +3,31 @@
 
 #include <plibsys.h>
 
+// used to de-opaque the Psocket struct making the members available, ie. the socket fd
+typedef struct{
+	PSocketFamily	family;
+	PSocketProtocol	protocol;
+	PSocketType	type;
+	pint		fd;
+	pint		listen_backlog;
+	pint		timeout;
+	puint		blocking	: 1;
+	puint		keepalive	: 1;
+	puint		closed		: 1;
+	puint		connected	: 1;
+	puint		listening	: 1;
+    #ifdef P_OS_WIN
+        WSAEVENT	events;
+    #endif
+    #ifdef P_OS_SCO
+        PTimeProfiler	*timer;
+    #endif
+}PSocket_receiver_t;
+
 // receiver struct
 typedef struct{
-    PSocketAddress *server_addr;
-    PSocket *server;
+    PSocketAddress *address;
+    PSocket *socket;
 }receiver_t;
 
 // initialize receiver

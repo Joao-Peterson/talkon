@@ -1,4 +1,4 @@
-#include "explorer.h"
+#include "transceiver.h"
 #include "config.h"
 #include "log.h"
 #include "stcp.h"
@@ -10,7 +10,7 @@
 /* ----------------------------------------- Globals ------------------------------------------ */
 
 // main list of nodes 
-doc *explorer = NULL;
+doc *transceiver = NULL;
 
 /* ----------------------------------------- Private functions -------------------------------- */
 
@@ -34,11 +34,11 @@ uint_t ip_strto_uint(char *ip_string){
 /* ----------------------------------------- Functions ---------------------------------------- */
 
 // ping ip range for other talkon application
-void explorer_discover(void){
-    uint_t ip_min = ip_strto_uint(config_get("discovery.addr-range[0]", char*));
-    uint_t ip_max = ip_strto_uint(config_get("discovery.addr-range[1]", char*));
-    uint_t port_min = config_get("discovery.port-range[0]", uint_t);
-    uint_t port_max = config_get("discovery.port-range[1]", uint_t);
+void transceiver_discover(void){
+    uint_t ip_min = ip_strto_uint(config_get("discovery.addr_range[0]", char*));
+    uint_t ip_max = ip_strto_uint(config_get("discovery.addr_range[1]", char*));
+    uint_t port_min = config_get("discovery.port_range[0]", uint_t);
+    uint_t port_max = config_get("discovery.port_range[1]", uint_t);
 
     if(ip_min == 0 || ip_max == 0){
         log_error("error while discovering nodes on network");
@@ -49,11 +49,11 @@ void explorer_discover(void){
         log_debug("Current IP: %X\n", ip);
         
         if(
-            (ip & 0x000000FF == 0x00) || 
-            (ip & 0x000000FF == 0x01) || 
-            (ip & 0x000000FF == 0xFF) ||
-            (ip & 0xFF000000 == 0x00) ||
-            (ip & 0xFF000000 == 0x00)
+            ((ip & 0x000000FF) == 0x00) || 
+            ((ip & 0x000000FF) == 0x01) || 
+            ((ip & 0x000000FF) == 0xFF) ||
+            ((ip & 0xFF000000) == 0x00) ||
+            ((ip & 0xFF000000) == 0x00)
         )
             continue;
 
@@ -75,11 +75,11 @@ void explorer_discover(void){
 }
 
 // get pointer to node list doc*
-doc *explorer_get_nodes(void){
+doc *transceiver_get_nodes(void){
 
 }
 
 // clean the list of nodes
-void explorer_delete_nodes(void){
+void transceiver_delete_nodes(void){
 
 }

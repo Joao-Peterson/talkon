@@ -1,5 +1,7 @@
 #include "receiver.h"
 
+#include <asm-generic/socket.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,55 +12,13 @@
 #include "simple_tcp_msg.h"
 #include "log.h"
 
+#include <psocket.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
 /* ----------------------------------------- Defines ------------------------------------------ */
 
 #define buffer_read_size 1024
-
-typedef struct{
-	PSocketFamily	family;
-	PSocketProtocol	protocol;
-	PSocketType	type;
-	pint		fd;
-	pint		listen_backlog;
-	pint		timeout;
-	puint		blocking	: 1;
-	puint		keepalive	: 1;
-	puint		closed		: 1;
-	puint		connected	: 1;
-	puint		listening	: 1;
-#ifdef P_OS_WIN
-	WSAEVENT	events;
-#endif
-#ifdef P_OS_SCO
-	PTimeProfiler	*timer;
-#endif
-}PSocket_receiver_t;
-
-/* ----------------------------------------- Private functions -------------------------------- */
-
-P_LIB_API void p_socket_set_broadcast(PSocket *socket, pboolean set_broadcast){
-
-    PSocket_receiver_t *PSocket_receiver = (PSocket_receiver_t*)socket;
-    
-#ifdef P_OS_WIN
-	pchar value;
-#else
-	pint value;
-#endif
-
-	if (P_UNLIKELY (socket == NULL))
-		return;
-
-#ifdef P_OS_WIN
-	value = !! (pchar) set_broadcast;
-#else
-	value = !! (pint) set_broadcast;
-#endif
-	if (setsockopt (PSocket_receiver->fd, SOL_SOCKET, SO_BROADCAST, &value, sizeof (value)) < 0) {
-		log_error("PSocket::p_socket_set_broadcast: setsockopt() with SO_BROADCAST failed");
-		return;
-	}
-}
 
 /* ----------------------------------------- Functions ---------------------------------------- */
 
@@ -67,30 +27,99 @@ receiver_t *receiver_init(void){
 
     receiver_t *receiver = calloc(1, sizeof(*receiver));
 
-    if((receiver->server_addr = p_socket_address_new("127.0.0.1", config_get("udp-port", int))) == NULL){
-        log_error("Error creating address for localhost\n");
+    int udp_port = config_get("udp_port", int);
+    int port_retry_num = config_get("port_retry_num", int);
+
+    PError *err;
+
+    for(int retry = 0; retry < port_retry_num; retry++){
+
+        // make sure to free if faile don retry
+        if(receiver->address != NULL)
+            p_socket_address_free(receiver->address);
+
+        if(receiver->socket != NULL)
+            p_socket_free(receiver->socket);
+
+        // create addres struct
+        if((receiver->address = p_socket_address_new("127.0.0.1", retry+udp_port)) == NULL){
+            if(retry == port_retry_num){
+                log_error("Error creating address for localhost\n");
+                return NULL;
+            }
+            else{
+                log_error("Error creating address for localhost in port [%i] - retry:[%i]\n", retry+udp_port, retry);
+                continue;
+            }
+        }
+
+        // create socket on ip and port
+        receiver->socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, &err);
+
+        if(receiver->socket == NULL || err != NULL){
+            if(err != NULL){
+                log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
+                p_error_free(err);
+                err = NULL;
+            }
+            
+            if(retry == port_retry_num){
+                log_error("Error in creating socket on udp port [%i]\n", retry+udp_port);
+                return NULL;
+            }
+            else{
+                log_error("Error in creating socket on udp port [%i] - retry:[%i]\n", retry+udp_port, retry);
+                continue;
+            }
+        }
+
+        // bind
+        pboolean res = p_socket_bind(receiver->socket, receiver->address, true, &err);
+        if(res == false || err != NULL){
+            if(err != NULL){
+                log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
+                p_error_free(err);
+                err = NULL;
+            }
+
+            if(retry == port_retry_num){
+                log_error("Error binding socket on udp port [%d] to localhost\n", retry+udp_port);
+                return NULL;
+            }
+            else{
+                log_error("Error binding socket on udp port [%d] to localhost - retry:[%i]\n", retry+udp_port, retry);
+                continue;
+            }
+        }
+        
+        break;
+    }
+
+    // register on multicast group
+    struct ip_mreq multicast_req;
+    char *udp_group = config_get("udp_group", char*);
+
+    // make multicast req to the kernel asking to join the multicast group 
+    inet_aton(udp_group, &multicast_req.imr_multiaddr);
+    multicast_req.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    // register the request
+    if((setsockopt(((PSocket_receiver_t*)receiver->socket)->fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_req , sizeof(multicast_req))) < 0){
+        log_error("Error setting up the udp multicast group join request\n");
+        p_socket_address_free(receiver->address);
+        p_socket_free(receiver->socket);
         return NULL;
     }
 
-    if((receiver->server = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, NULL)) == NULL){
-        log_error("error in creating socket on udp port [%d]\n", config_get("udp-port", int));
-        return NULL;
-    }
-
-    if((p_socket_bind(receiver->server, receiver->server_addr, true, NULL)) == false){
-        log_error("error binding socket on udp port [%d] to localhost\n", config_get("udp-port", int));
-        return NULL;
-    }
-
-    p_socket_set_broadcast(receiver->server, true);
+    log("UDP multicast listener opened on interface %s:%i\n", p_socket_address_get_address(receiver->address), p_socket_address_get_port(receiver->address));
     
     return receiver;
 }
 
 // ends the receiver, cleaning up memory
 void receiver_delete(receiver_t *receiver){
-    p_socket_address_free(receiver->server_addr);
-    p_socket_free(receiver->server);
+    p_socket_address_free(receiver->address);
+    p_socket_free(receiver->socket);
 }
 
 // responds to the message received  
@@ -171,8 +200,9 @@ void *receiver_listen(void *data){
 
     // receive until receive d bytes are less than buffer size
     do{
-        received_bytes = p_socket_receive(receiver->server, buffer, buffer_read_size, NULL);
-        
+        // log_debug("before receive\n");
+        received_bytes = p_socket_receive(receiver->socket, buffer, buffer_read_size, NULL);
+        // log_debug("after receive\n");
         if(received_bytes == 0){
             // log_error("stcp_receive() error\n");
             // free(received_msg);
@@ -191,4 +221,6 @@ void *receiver_listen(void *data){
         // receiver_respond(client_in, received_msg);
         free(received_msg);
     }
+
+    return NULL;
 }
