@@ -17,11 +17,9 @@ SOURCES = main.c
 SOURCES += src/curses_extra.c 
 SOURCES += src/strfmt.c 
 SOURCES += src/config.c 
-SOURCES += src/explorer.c 
-SOURCES += src/receiver.c 
+SOURCES += src/net_discovery.c 
+SOURCES += src/net_messaging.c 
 SOURCES += src/log.c 
-SOURCES += stcp/socket.c 
-SOURCES += stcp/stcp.c
 
 LIBS := -ldoc -lplibsysstatic -pthread -ldl
 

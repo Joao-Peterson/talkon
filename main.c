@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 
 #include <doc.h>
 #include <doc_json.h>
@@ -13,7 +14,7 @@
 #include "curses_extra.h"
 #include "tui.h"
 #include "simple_tcp_msg.h"
-#include "receiver.h"
+#include "net_discovery.h"
 #include "log.h"
 
 #include <doc.h>
@@ -24,47 +25,29 @@
 #include "curses_extra.h"
 #include "tui.h"
 #include "simple_tcp_msg.h"
-#include "stcp.h"
 
 #include <plibsys.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-/* ----------------------------------------- Struct's ----------------------------------------- */
-
 /* ----------------------------------------- Globals ------------------------------------------ */
 
-pthread_t receiver_thread;
+pthread_t discovery_receiver_thread;
+
+pthread_t discovery_transmitter_thread;
+
+PSemaphore *discovery_ping_signal;
 
 /* ----------------------------------------- Functions ---------------------------------------- */
 
-// receiver thread daemon routine
-void *receiver_thread_routine(void *data){
-
-    receiver_t *receiver = receiver_init();
-    
-    if(receiver == NULL){
-        log_error("Receiver init failed\n");
-        return NULL;
-    }
-
-    while(1){
-        receiver_listen(receiver);
-    }
-
-    receiver_delete(receiver);
-
-    return NULL;
-}
-
 // err and die
-void static inline err_and_die(void){
-    endwin();
-    // pthread_join(receiver_thread, NULL);
-    pthread_cancel(receiver_thread);
-    config_save();
-    p_libsys_shutdown();
-}
+void static inline err_and_die(void);
+
+// discovery_receiver thread daemon routine
+void *discovery_receiver_thread_routine(void *data);
+
+// discovery_transmitter thread daemon routine
+void *discovery_transmitter_thread_routine(void *data);
 
 /* ----------------------------------------- Main --------------------------------------------- */
 
@@ -81,9 +64,35 @@ int main(int argc, char **argv){
     snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
     // log_set_output_file(buffer, "w+");
 
-    // create threads for messaging
-    if(pthread_create(&receiver_thread, NULL, &receiver_thread_routine, NULL) < 0){
-        log_error("Receiver thread creation failed\n");
+    // variable for plibsys errors
+    PError *err = NULL;
+    
+    // unique name for semaphore
+    srand((unsigned int)time(NULL));
+    char sem_name[50] = {0};
+    snprintf(sem_name, 50, "discovery_ping_signal_%i", rand());
+    
+    // create semaphore for discovery transmitter communication
+    discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
+    if(discovery_ping_signal == NULL || err != NULL){
+        log_error("Error while creating psemaphore\n");
+        if(err != NULL){
+            log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
+            p_error_free(err);
+            err = NULL;
+        }
+        return -1;
+    }
+
+    // create thread for discovery listening
+    if(pthread_create(&discovery_receiver_thread, NULL, &discovery_receiver_thread_routine, NULL) < 0){
+        log_error("Discovery receiver thread creation failed\n");
+        return -1;
+    }
+
+    // create thread for discovery sending
+    if(pthread_create(&discovery_transmitter_thread, NULL, &discovery_transmitter_thread_routine, NULL) < 0){
+        log_error("Discovery transmitter thread creation failed\n");
         return -1;
     }
     
@@ -148,55 +157,7 @@ int main(int argc, char **argv){
 
             case 'p':
                 {
-                    PSocketAddress *addr = p_socket_address_new_any(P_SOCKET_FAMILY_INET, 5005);                    
-                    PSocket *socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, NULL);
-                    p_socket_bind(socket, addr, 0, NULL);
-
-                    int flag = 1;
-                    setsockopt(p_socket_get_fd(socket), IPPROTO_IP, IP_MULTICAST_LOOP, (void*)(&flag), sizeof(flag));
-
-                    PSocketAddress *multicast = p_socket_address_new(config_get("udp_group", char*), 5001);
-                    psize res = p_socket_send_to(socket, multicast, "{\"type\": 1}", 14ULL, NULL);
-                    // psize res = p_socket_send_to(socket, multicast, "MULTICAST!!!!", 14ULL, NULL);
-                    log_debug("sended: [%i]\n", res);
-
-                    int received_msg_size = 1;
-                    char *received_msg = calloc(received_msg_size, sizeof(char));
-
-                    char buffer[1024];
-                    int received_bytes;
-
-                    PSocketAddress *remote_address = NULL;
-                    // receive until receive d bytes are less than buffer size
-                    do{
-                        if(remote_address != NULL)
-                            p_socket_address_free(remote_address);
-                        
-                        received_bytes = p_socket_receive_from(socket, &remote_address, buffer, 1024, NULL);
-                        if(received_bytes == 0){
-                            continue;
-                        }
-
-                        received_msg_size += received_bytes;
-                        received_msg = realloc(received_msg, received_msg_size);
-                        strcat(received_msg, buffer);
-
-                    }while(received_bytes == 1024);
-
-                    if(received_msg != NULL){
-                        log("Received from (%s:%i): %s.\n", 
-                            p_socket_address_get_address(remote_address), 
-                            p_socket_address_get_port(remote_address), 
-                            received_msg
-                        );
-
-                        free(received_msg);
-                    }
-
-                    p_socket_free(socket);
-                    p_socket_address_free(remote_address);
-                    p_socket_address_free(addr);
-                    p_socket_address_free(multicast);
+                    p_semaphore_release(discovery_ping_signal, NULL);
                 }
                 break;
 
@@ -208,4 +169,52 @@ int main(int argc, char **argv){
 
     err_and_die();
     return 0;
+}
+
+/* ----------------------------------------- Functions ---------------------------------------- */
+
+// err and die
+void static inline err_and_die(void){
+    endwin();
+    // pthread_join(discovery_receiver_thread, NULL);
+    pthread_cancel(discovery_receiver_thread);
+    pthread_cancel(discovery_transmitter_thread);
+    p_semaphore_take_ownership(discovery_ping_signal);
+    p_semaphore_release(discovery_ping_signal, NULL);
+    config_save();
+    p_libsys_shutdown();
+}
+
+// discovery_receiver thread daemon routine
+void *discovery_receiver_thread_routine(void *data){
+
+    discovery_receiver_t *discovery_receiver = discovery_receiver_init();
+    
+    if(discovery_receiver == NULL){
+        log_error("discovery_Receiver init failed\n");
+        return NULL;
+    }
+
+    while(1){
+        discovery_receiver_listen(discovery_receiver);
+    }
+
+    discovery_receiver_delete(discovery_receiver);
+
+    return NULL;
+}
+
+// discovery_transmitter thread routine
+void *discovery_transmitter_thread_routine(void *data){
+
+    discovery_transmitter_t *transmitter = discovery_transmitter_init();
+
+    while(1){
+        p_semaphore_acquire(discovery_ping_signal, NULL);
+        discovery_transmitter_ping(transmitter);
+    }
+
+    discovery_transmitter_delete(transmitter);
+
+    return NULL;
 }
