@@ -1,6 +1,7 @@
 .vscode
 .clangd
 build
+test.c
 main
 main.exe
 *.http

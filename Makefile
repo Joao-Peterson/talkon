@@ -19,6 +19,7 @@ SOURCES += src/strfmt.c
 SOURCES += src/config.c 
 SOURCES += src/net_discovery.c 
 SOURCES += src/net_messaging.c 
+SOURCES += src/inet_extra.c 
 SOURCES += src/log.c 
 
 LIBS := -ldoc -lplibsysstatic -pthread -ldl

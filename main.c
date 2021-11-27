@@ -208,7 +208,6 @@ void *discovery_receiver_thread_routine(void *data){
 void *discovery_transmitter_thread_routine(void *data){
 
     discovery_transmitter_t *transmitter = discovery_transmitter_init();
-
     while(1){
         p_semaphore_acquire(discovery_ping_signal, NULL);
         discovery_transmitter_ping(transmitter);

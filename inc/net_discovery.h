@@ -26,7 +26,7 @@ discovery_receiver_t *discovery_receiver_init(void);
 void discovery_receiver_delete(discovery_receiver_t *discovery_receiver);
 
 // discovery_receiver function that listens on network and respond accordingly
-void *discovery_receiver_listen(void *data);
+void discovery_receiver_listen(discovery_receiver_t *discovery_receiver);
 
 // initialize discovery_transmitter
 discovery_transmitter_t *discovery_transmitter_init(void);

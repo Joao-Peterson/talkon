@@ -11,7 +11,7 @@
 #define buffer_path_len 500
 
 // default json file
-#define config_default_json "{\"info\":{\"name\":\"talkinho\",\"pic\":[\"# ## #\",\" #### \",\" #### \",\"# ## #\"]},\"discovery\":{\"port_udp_listen\":5001,\"port_udp_send\":5011,\"address_udp_multicast_group\":\"232.0.1.251\",\"port_retry_num\":9,\"port_udp_discovery_range\":[5000,5010]},\"messeging\":{\"port_tcp_listen\":5021,\"port_tcp_send\":5031,\"port_retry_num\":9}}"
+#define config_default_json "{\"info\":{\"name\":\"talkinho\",\"pic\":[\"# ## #\",\" #### \",\" #### \",\"# ## #\"]},\"discovery\":{\"port_udp_listen\":5000,\"port_udp_send\":5010,\"address_udp_multicast_group\":\"232.0.1.251\",\"port_retry_num\":9,\"port_udp_discovery_range\":[5000,5009],\"timeout_ms\":1000},\"messeging\":{\"port_tcp_listen\":5020,\"port_tcp_send\":5030,\"port_retry_num\":9,\"timeout_ms\":1000}}"
 
 // config filename
 #define config_filename "config.json"

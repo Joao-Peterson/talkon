@@ -7,6 +7,8 @@ Compiled and tested in:
 - Windows   (MinGW64 gcc)
 - Linux     (Arch)
 
+- [TODO](#todo)
+
 ## TODO
 
 - to check windows compiling on file handling functions/macros in config.c
