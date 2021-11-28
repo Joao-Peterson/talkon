@@ -38,6 +38,8 @@ pthread_t discovery_transmitter_thread;
 
 PSemaphore *discovery_ping_signal;
 
+doc *cache = NULL;
+
 /* ----------------------------------------- Functions ---------------------------------------- */
 
 // err and die
@@ -54,7 +56,6 @@ void *discovery_transmitter_thread_routine(void *data);
 // entry point main
 int main(int argc, char **argv){
 
-
     // init routines
     p_libsys_init();
     config_init();
@@ -64,15 +65,19 @@ int main(int argc, char **argv){
     snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
     // log_set_output_file(buffer, "w+");
 
+    // cache where threads can read/write information
+    cache = doc_new("cache", dt_obj,
+        "nodes", dt_obj, ";",
+        ";"
+    );
+
     // variable for plibsys errors
     PError *err = NULL;
     
-    // unique name for semaphore
-    srand((unsigned int)time(NULL));
-    char sem_name[50] = {0};
-    snprintf(sem_name, 50, "discovery_ping_signal_%i", rand());
-    
     // create semaphore for discovery transmitter communication
+    char sem_name[50] = {0};
+    // unique name for semaphore
+    snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid());
     discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
     if(discovery_ping_signal == NULL || err != NULL){
         log_error("Error while creating psemaphore\n");
@@ -182,6 +187,7 @@ void static inline err_and_die(void){
     p_semaphore_take_ownership(discovery_ping_signal);
     p_semaphore_release(discovery_ping_signal, NULL);
     config_save();
+    config_end();
     p_libsys_shutdown();
 }
 

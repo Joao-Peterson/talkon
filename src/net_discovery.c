@@ -459,6 +459,8 @@ void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
                 received_msg
             );
 
+            
+
             free(received_msg);
         }
 

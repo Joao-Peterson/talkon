@@ -4,6 +4,7 @@
 #include "config.h"
 #include <doc.h>
 #include <doc_json.h>
+#include <plibsys.h>
 
 /* ----------------------------------------- Defines ---------------------------------------- */
 
@@ -47,7 +48,11 @@
 // global config pointer
 doc *config_doc = NULL;
 
+// config folder path
 char *config_folder_path = NULL;
+
+// rw lock for acessing the config obj
+PRWLock *config_rw_lock = NULL;
 
 /* ----------------------------------------- Private functions ------------------------------- */
 
@@ -121,4 +126,13 @@ void config_init(void){
         printf("config.json file: %s\n", doc_get_error_msg());
         exit(-1);
     }
+
+    config_rw_lock = p_rwlock_new();
+}
+
+// free memory
+void config_end(void){
+    config_save();
+    doc_delete(config_doc, ".");
+    p_rwlock_free(config_rw_lock);
 }
