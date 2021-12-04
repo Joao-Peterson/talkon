@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -5,28 +6,26 @@
 #include <doc.h>
 #include <doc_json.h>
 #include <plibsys.h>
+#include <string.h>
+#include <uuid/uuid.h>
 
 /* ----------------------------------------- Defines ---------------------------------------- */
 
 // max len gor buffer path
 #define buffer_path_len 500
 
-// default json file
-#define config_default_json "{\"info\":{\"name\":\"talkinho\",\"pic\":[\"# ## #\",\" #### \",\" #### \",\"# ## #\"]},\"discovery\":{\"port_udp_listen\":5000,\"port_udp_send\":5010,\"address_udp_multicast_group\":\"232.0.1.251\",\"port_retry_num\":9,\"port_udp_discovery_range\":[5000,5009],\"timeout_ms\":1000},\"messeging\":{\"port_tcp_listen\":5020,\"port_tcp_send\":5030,\"port_retry_num\":9,\"timeout_ms\":1000}}"
-
 // config filename
 #define config_filename "config.json"
 
 // os specific switch
-#if defined(__linux__) || defined(__unix__) || defined(__posix__)
+#if defined(P_OS_LINUX)
 
     #include <sys/stat.h>
-
     // path and filename for config
     #define home_path_var "HOME"
     #define config_path ".config/talkon"
 
-#elif defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(__NT__)
+#elif defined(P_OS_WIN) || defined(P_OS_WIN64)
 
     #include <direct.h>
 
@@ -35,12 +34,15 @@
     #define config_path ".talkon"
     #define mkdir(path, mode) _mkdir(path)
 
-#elif defined(__ANDROID__)
-    #error android is not supported!
-#elif defined(__APPLE__) || defined(__MACH__)
-    #error macOS is not supported!
+#elif defined(P_OS_ANDROID)
+    #error android is not supported because of OS specific calls like mkdir() and OS specific filesystem hierarchy paths for config files. \
+Feel free to add a OS preprocessor switch for OS and implement the necessary functionality.
+#elif defined(P_OS_MAC) || defined(P_OS_MAC9)
+    #error macOS9 and macOS are not supported because of OS specific calls like mkdir() and OS specific filesystem hierarchy paths for config files. \
+Feel free to add a OS preprocessor switch for OS and implement the necessary functionality.
 #elif
-    #error your OS is not supported!
+    #error your OS is not supported because of OS specific calls like mkdir() and OS specific filesystem hierarchy paths for config files. \
+Feel free to add a OS preprocessor switch for OS and implement the necessary functionality.
 #endif
 
 /* ----------------------------------------- Globals ---------------------------------------- */
@@ -48,39 +50,18 @@
 // global config pointer
 doc *config_doc = NULL;
 
+doc *profile_doc = NULL;
+
 // config folder path
 char *config_folder_path = NULL;
+
+// default json file
+extern const char _binary_res_config_json_start[];
 
 // rw lock for acessing the config obj
 PRWLock *config_rw_lock = NULL;
 
 /* ----------------------------------------- Private functions ------------------------------- */
-
-// detect file existence
-int check_fs(char *filename_directory){
-    FILE *file = fopen(filename_directory, "r+");
-
-    if(file == NULL){
-        switch(errno){
-            case ENOENT:
-            case ENOTDIR:
-            case EACCES:
-            case EINVAL:
-            default:
-                return 0;
-                break;
-
-            case EEXIST:
-            case EISDIR:
-                return 1;
-                break;
-        }
-    }
-    else{
-        fclose(file);
-        return 1;
-    }
-}
 
 /* ----------------------------------------- Functions --------------------------------------- */
 
@@ -89,7 +70,7 @@ void config_save(void){
     char path[buffer_path_len];
     snprintf(path, buffer_path_len, "%s/%s", getenv(home_path_var), config_path);
 
-    if(!check_fs(path)){
+    if(!p_file_is_exists(path)){
         mkdir(path, S_IRWXU);
     }
     
@@ -108,18 +89,19 @@ char *config_get_config_folder_path(void){
     return config_folder_path;
 }
 
-// init config by file or default 
-void config_init(void){
+// init config by file or default, receives the profile to be used
+void config_init(uint32_t profile_id){
 
     char path[buffer_path_len];
     snprintf(path, buffer_path_len, "%s/%s/%s", getenv(home_path_var), config_path, config_filename);
 
-    if(check_fs(path)){
+    // check for config file existence
+    if(p_file_is_exists(path)){
         config_doc = doc_json_open(path);
     }
     else{
-        config_doc = doc_json_parse(config_default_json);
-        config_save();
+        config_doc = doc_json_parse((char*)_binary_res_config_json_start);
+        config_save(); 
     }
 
     if(config_doc == NULL){
@@ -127,6 +109,23 @@ void config_init(void){
         exit(-1);
     }
 
+    // profile information
+    doc *profiles = doc_get_ptr(config_doc, "profiles");
+    for(doc_loop(profile, profiles)){
+        if(doc_get_ptr(profile, "id") == NULL){
+            uuid_t uuid; 
+            uuid_generate(uuid);
+            char *uuid_str = (char*)calloc(37, sizeof(char));
+
+            uuid_unparse_lower(uuid, uuid_str);
+
+            doc_add(profile, ".", "id", dt_string, uuid_str, strlen(uuid_str) + 1, ";");
+        }
+    }
+    snprintf(path, buffer_path_len, "profiles[%u]", profile_id);
+    profile_doc = doc_get_ptr(config_doc, path);
+
+    // create read lock, future usage
     config_rw_lock = p_rwlock_new();
 }
 
@@ -134,5 +133,7 @@ void config_init(void){
 void config_end(void){
     config_save();
     doc_delete(config_doc, ".");
+    config_doc = NULL;
+    profile_doc = NULL;
     p_rwlock_free(config_rw_lock);
 }

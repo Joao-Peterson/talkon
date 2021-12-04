@@ -5,22 +5,26 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <plibsys.h>
 #include "strfmt.h"
 
 /* ----------------------------------------- Defines ---------------------------------------- */
 
-#if defined(__linux__) || defined(__unix__) || defined(__posix__)
+#if defined(P_OS_LINUX)
     #include <curses.h>
     #include <panel.h>
-#elif defined(_WIN32) || defined(_WIN64) || defined(__WINDOWS__) || defined(__NT__)
+#elif defined(P_OS_WIN) || defined(P_OS_WIN64)
     #include <curses.h>
     #include <panel.h>
-#elif defined(__ANDROID__)
-    #error android is not supported!
-#elif defined(__APPLE__) || defined(__MACH__)
-    #error macOS is not supported!
+#elif defined(P_OS_ANDROID)
+    #error android is not supported because of curses library compatibility. \
+Feel free to port this application to android. 
+#elif defined(P_OS_MAC) || defined(P_OS_MAC9)
+    #error macOS9 and macOS are not supported because of curses library compatibility. \
+Feel free to port this application to macOS.
 #elif
-    #error your OS is not supported!
+    #error your OS is not supported because of curses library compatibility. \
+Feel free to port this application to your OS.
 #endif
 
 /* ----------------------------------------- Structs ---------------------------------------- */

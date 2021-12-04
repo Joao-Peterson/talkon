@@ -6,9 +6,13 @@
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
-
+#include <plibsys.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <doc.h>
 #include <doc_json.h>
+
+#include "db.h"
 #include "config.h"
 #include "strfmt.h"
 #include "curses_extra.h"
@@ -16,19 +20,6 @@
 #include "simple_tcp_msg.h"
 #include "net_discovery.h"
 #include "log.h"
-
-#include <doc.h>
-#include <doc_json.h>
-
-#include "config.h"
-#include "strfmt.h"
-#include "curses_extra.h"
-#include "tui.h"
-#include "simple_tcp_msg.h"
-
-#include <plibsys.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 
 /* ----------------------------------------- Globals ------------------------------------------ */
 
@@ -58,7 +49,7 @@ int main(int argc, char **argv){
 
     // init routines
     p_libsys_init();
-    config_init();
+    config_init(0);
 
     // log file
     char buffer[500];
@@ -100,7 +91,7 @@ int main(int argc, char **argv){
         log_error("Discovery transmitter thread creation failed\n");
         return -1;
     }
-    
+
     // // initialize curses
     // initscr();
     // // cbreak();

@@ -17,29 +17,40 @@ SOURCES = main.c
 SOURCES += src/curses_extra.c 
 SOURCES += src/strfmt.c 
 SOURCES += src/config.c 
+SOURCES += src/db.c 
 SOURCES += src/net_discovery.c 
 SOURCES += src/net_messaging.c 
 SOURCES += src/inet_extra.c 
 SOURCES += src/log.c 
 
-LIBS := -ldoc -lplibsysstatic -pthread -ldl
+RESOURCES = res/config.json 
+RESOURCES +=
+
+LIBS = -ldoc 
+LIBS += -lplibsysstatic 
+LIBS += -pthread
+LIBS += -ldl
+LIBS += -lsqlite3
+LIBS += -luuid
 
 BUILD_DIR := build/
 DIST_DIR := dist/
+RESOURCES_DIR += res/
 
 CC := gcc
 BUILD_C_FLAGS = -g 
 RELEASE_C_FLAGS = -O2 
 C_FLAGS =
-I_FLAGS = -Iinc -Istcp -I/usr/local/include/plibsys
+I_FLAGS = -Iinc -I/usr/local/include/plibsys
 L_FLAGS = -L./
 
 # ---------------------------------------------------------------
 # Do not alter anything below!
 # ---------------------------------------------------------------
 
-OBJS := $(SOURCES:.c=.o)
-OBJS_BUILD := $(addprefix $(BUILD_DIR), $(OBJS))
+OBJS = $(SOURCES:.c=.o)
+OBJS += $(addsuffix .o, $(RESOURCES))
+OBJS_BUILD = $(addprefix $(BUILD_DIR), $(OBJS))
 
 # OS detection
 OSFLAG :=
@@ -93,6 +104,10 @@ $(EXE): $(OBJS_BUILD)
 
 dist : $(OBJS_BUILD)
 	@mkdir -p $(DIST_DIR)
+
+$(BUILD_DIR)$(RESOURCES_DIR)%.o : $(RESOURCES_DIR)%
+	@mkdir -p $(dir $@)
+	ld -r -b binary -o $@ $<
 
 clear : 
 	rm -f $(EXE)

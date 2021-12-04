@@ -1,16 +1,35 @@
-### Talkon - LTT
+# Talkon - LTT
 
 LAN TCP TUI messenger written in C with curses.
 
+## Table of contents
+
+- [Talkon - LTT](#talkon---ltt)
+  - [Table of contents](#table-of-contents)
+  - [Compiled on:](#compiled-on)
+  - [Dependencies](#dependencies)
+  - [TODO](#todo)
+
+## Compiled on:
+
 Compiled and tested in:
 
-- Windows   (MinGW64 gcc)
+- Windows   (MinGW64)
 - Linux     (Arch)
 
-- [TODO](#todo)
+## Dependencies
+
+- Windows (Mingw64 - Msys2)
+  - [sqlite3](https://packages.msys2.org/base/mingw-w64-sqlite3)
+  - [libutil-linux](https://packages.msys2.org/package/libutil-linux-devel?repo=msys&variant=x86_64)
+  - [plibsys](https://github.com/saprykin/plibsys)
+  - [c_doc](https://github.com/Joao-Peterson/c_doc)
+- Linux based 
+  - util-linux
+  - sqlite3
+  - [plibsys](https://github.com/saprykin/plibsys)
+  - [c_doc](https://github.com/Joao-Peterson/c_doc)
 
 ## TODO
 
-- to check windows compiling on file handling functions/macros in config.c
-- when resizing, add event and refresh whole window
-- add refreshing to window only when focusing on it 
+- For now, just compiling on windows.
