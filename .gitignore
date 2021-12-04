@@ -5,3 +5,4 @@ test.c
 main
 main.exe
 *.http
+*.db
