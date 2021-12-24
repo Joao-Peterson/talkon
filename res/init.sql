@@ -1,7 +1,8 @@
 create table nodes(
     id integer primary key autoincrement, 
     uuid text unique not null,
-    name text not null
+    name text not null,
+    pic char(45)
 );
 
 create table chat(

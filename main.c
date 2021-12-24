@@ -1,4 +1,5 @@
 #include <netinet/in.h>
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -11,6 +12,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <doc.h>
+#include <doc_print.h>
 #include <doc_json.h>
 
 #include "db.h"
@@ -21,6 +23,11 @@
 #include "simple_tcp_msg.h"
 #include "net_discovery.h"
 #include "log.h"
+
+/* ----------------------------------------- Globals ------------------------------------------ */
+
+// max query string len 
+#define sqlite_query_maxlen 1024
 
 /* ----------------------------------------- Globals ------------------------------------------ */
 
@@ -59,21 +66,23 @@ int main(int argq, char **argv){
     uint32_t profile_id = atoi(argv[1]);
     // ! TEMP
 
-
     // init routines
     p_libsys_init();
     config_init(profile_id);
 
-    db = db_init();
-    if(db == NULL){
-        log_error("error initializing sqlite databse.\n");
-        return -1;
-    }
-
     // log file
     char buffer[500];
     snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
-    // log_set_output_file(buffer, "w+");
+    log_set_output_file(buffer, "w+");
+
+    db = db_init();
+    if(db == NULL){
+        log_error("error initializing sqlite database.\n");
+        return -1;
+    }
+
+    // greetings!
+    // log("logged as \"%s\" uuid: \"%s\", welcome!.\n", profile_get("name", char*), profile_get("uuid", char*));
 
     // variable for plibsys errors
     PError *err = NULL;
@@ -111,52 +120,52 @@ int main(int argq, char **argv){
         return -1;
     }
 
-    // // initialize curses
-    // initscr();
-    // // cbreak();
-    // timeout(-1);
-    // noecho();
-    // clear();
-    // curs_set(0);
+    // initialize curses
+    initscr();
+    // cbreak();
+    timeout(-1);
+    noecho();
+    clear();
+    curs_set(0);
 
-    // // check colors
-    // if(!has_colors()){
-    //     printw("This terminal doesn't support colors!\nPlease use another terminal");
-    //     getch();
-    //     exit(-1);
-    // }
-    // if(!can_change_color()){
-    //     printw("This terminal doesn't support custom colors!\nPlease use another terminal");
-    //     getch();
-    //     exit(-1);
-    // }
+    // check colors
+    if(!has_colors()){
+        printw("This terminal doesn't support colors!\nPlease use another terminal");
+        getch();
+        exit(-1);
+    }
+    if(!can_change_color()){
+        printw("This terminal doesn't support custom colors!\nPlease use another terminal");
+        getch();
+        exit(-1);
+    }
 
-    // start_color();
+    start_color();
 
-    // curses_extra_init();
-    // tui_init();
+    curses_extra_init();
+    tui_init();
 
-    // // first render
-    // update_panels();
-    // tui_draw();
-    // tui_draw();
-    // refresh();
+    // first render
+    update_panels();
+    tui_draw(NULL);
+    tui_draw(NULL);
+    refresh();
 
     // main loop
     while(1){
         
         // ----------------------- draw ------------------------
-        // tui_draw();
-        // update_panels();
-        // refresh();
+        tui_draw(NULL);
+        update_panels();
+        refresh();
 
         // ----------------------- input -----------------------
-        // int input = getch();
-        fflush(stdin);
-        int input = getchar();
-        fflush(stdin);
+        int input = getch();
+        // fflush(stdin);
+        // int input = getchar();
+        // fflush(stdin);
 
-        // tui_logic(input);
+        tui_logic(input);
 
         switch(input){
             case 'q':
@@ -230,7 +239,69 @@ void *discovery_transmitter_thread_routine(void *data){
     discovery_transmitter_t *transmitter = discovery_transmitter_init();
     while(1){
         p_semaphore_acquire(discovery_ping_signal, NULL);
-        discovery_transmitter_ping(transmitter);
+        doc *nodes = discovery_transmitter_ping(transmitter);
+
+        if(nodes == NULL || doc_get_size(nodes, ".") == 0){
+            log(
+                "no nodes found on network. Scanned group %s:[%i/%i].\n", 
+                config_get("discovery.address_udp_multicast_group", char*),
+                config_get("discovery.port_udp_discovery_range[0]", int),
+                config_get("discovery.port_udp_discovery_range[1]", int)
+            );
+        }
+        
+        if(nodes != NULL && doc_get_size(nodes, ".") > 0){
+
+            char query[sqlite_query_maxlen];
+            
+            p_rwlock_writer_lock(db_lock);
+
+            // loop through received nodes in doc *nodes, inserting them into db
+            for(doc_loop(node, nodes)){
+                char *uuid = doc_get(node, "uuid", char*);
+                char *name = doc_get(node, "name", char*);
+
+                doc *pic_doc = doc_get_ptr(node, "pic");
+                char pic[profile_pic_string_len];
+
+                for(doc_loop(line, pic_doc)){
+                    strcat(pic, doc_get(line, ".", char*));    
+
+                    // append line break on every line except the last one
+                    if(line->next != NULL)
+                        strcat(pic, "\n");
+                }
+                    
+                snprintf(
+                    query, sqlite_query_maxlen, 
+                    "insert into nodes (uuid, name, pic) values (\"%s\", \"%s\", \"%s\");", 
+                    uuid, 
+                    name,
+                    pic
+                );
+
+                char *sqlite_err; 
+
+                if(sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err) != SQLITE_OK){
+                    log_error("sqlite database couldn't execute the query \"%s\".\n", query);
+
+                    if(sqlite_err != NULL)
+                        log_error("[SQLITE] %s", sqlite_err);
+                }
+                else{
+                    log("sqlite database executed the query \"%s\".\n", query);
+
+                    if(sqlite_err != NULL)
+                        log_error("[SQLITE] %s", sqlite_err);
+                }
+            }
+
+            p_rwlock_writer_unlock(db_lock);
+
+        }
+
+        if(nodes != NULL)
+            doc_delete(nodes, ".");
     }
 
     discovery_transmitter_delete(transmitter);

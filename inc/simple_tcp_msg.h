@@ -1,6 +1,11 @@
 #ifndef _SIMPLE_TCP_MSG_HEADER_
 #define _SIMPLE_TCP_MSG_HEADER_
 
+// pic is a 8x5 ascii art 
+#define profile_pic_string_len 45 
+#define profile_pic_height 5 
+#define profile_pic_width  8 
+
 typedef enum{
     msg_type_error = 0,
     msg_type_ping = 1,

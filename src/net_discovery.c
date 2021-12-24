@@ -24,7 +24,7 @@
 // Multicast options
 // https://tldp.org/HOWTO/Multicast-HOWTO-6.html
 
-// IP optioons
+// IP options
 // https://www.man7.org/linux/man-pages/man7/ip.7.html
 
 // plibsys sockets
@@ -166,47 +166,49 @@ void discovery_receiver_respond(PSocket *client, PSocketAddress *remote_address,
     }
 
     switch(msg_type){
+
         case msg_type_ping:
-            {
-                doc *info = doc_copy(profile_doc, ".");
-                doc_rename(info, ".", "info");
-                
-                doc *res = doc_new(
+        {
+            doc *info = doc_copy(profile_doc, ".");
+            doc_rename(info, ".", "info");
+            
+            doc *res = doc_new(
                 "res", dt_obj,
                     "type", dt_int32, msg_type_info,
-                ";");
+                ";"
+            );
 
-                doc_append(res, ".", info);
+            doc_append(res, ".", info);
 
-                char *res_str = doc_json_stringify(res);
+            char *res_str = doc_json_stringify(res);
 
-                if(res_str == NULL){
-                    res_str = "{\"type\": 0}";
-                    p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
-                }
-                else{
-                    p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
-                    free(res_str);
-                }
-
-                doc_delete(res, ".");
+            if(res_str == NULL){
+                res_str = "{\"type\": 0}";
+                p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
             }
-            break;
+            else{
+                p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
+                free(res_str);
+            }
+
+            doc_delete(res, ".");
+        }
+        break;
 
         // error type
         case msg_type_message:
         case msg_type_status:
         case 0:
         default:
-            {
-                log_error("type received (%i) is not a defined type\n", msg_type);
+        {
+            log_error("type received (%i) is not a defined type\n", msg_type);
 
-                char buffer[500];
-                snprintf(buffer, 500, "type received (%i) is not a defined type\n", msg_type);
+            char buffer[500];
+            snprintf(buffer, 500, "type received (%i) is not a defined type\n", msg_type);
 
-                p_socket_send_to(client, remote_address, buffer, strlen(buffer), NULL);
-            }
-            break;
+            p_socket_send_to(client, remote_address, buffer, strlen(buffer), NULL);
+        }
+        break;
     }  
 
     doc_delete(packet_in, ".");
@@ -380,7 +382,7 @@ void discovery_transmitter_delete(discovery_transmitter_t *discovery_transmitter
     p_socket_free(discovery_transmitter->socket);
 }
 
-void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
+doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
 
     // config get
     int port_remote_min = config_get("discovery.port_udp_discovery_range[0]", int);
@@ -388,6 +390,12 @@ void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
     char *multicast_group = config_get("discovery.address_udp_multicast_group", char*);
 
     PError *err = NULL;
+
+    // doc structure to hold discovered nodes
+    doc *nodes = doc_new(
+        "nodes", dt_array,
+        ";"
+    );
 
     // ping trought all listening udp ports on multicast group 
     for(int port = port_remote_min; port <= port_remote_max; port++){
@@ -459,7 +467,25 @@ void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
                 received_msg
             );
 
-            
+            doc *packet = doc_json_parse(received_msg);
+
+            if(packet != NULL){
+
+                int type = doc_get(packet, "type", int);
+                
+                if(type == msg_type_info){
+                    doc *node = doc_copy(packet, "info");
+                    doc_append(nodes, ".", node);
+                }
+                else{
+                    log_error("received ping response message has wrong type, expected [2], got [%i]", type);
+                }        
+
+                doc_delete(packet, ".");
+            }
+            else{
+                log_error("received ping response message was malformed, non json compliant.\n");
+            }
 
             free(received_msg);
         }
@@ -469,5 +495,5 @@ void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
         p_socket_address_free(multicast);
     }
 
-    return;
+    return nodes;
 }

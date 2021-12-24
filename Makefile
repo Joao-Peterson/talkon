@@ -22,6 +22,7 @@ SOURCES += src/net_discovery.c
 SOURCES += src/net_messaging.c 
 SOURCES += src/inet_extra.c 
 SOURCES += src/log.c 
+SOURCES += src/tui.c 
 
 RESOURCES = res/config.json 
 RESOURCES += res/init.sql 

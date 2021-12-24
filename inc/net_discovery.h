@@ -2,6 +2,7 @@
 #define _NET_DISCOVER_HEADER_
 
 #include <plibsys.h>
+#include <doc.h>
 
 /* ----------------------------------------- Struct's ----------------------------------------- */
 
@@ -35,6 +36,6 @@ discovery_transmitter_t *discovery_transmitter_init(void);
 void discovery_transmitter_delete(discovery_transmitter_t *discovery_transmitter);
 
 // discovery_transmitter function that multicasts on the network to discover new nodes
-void discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter);
+doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter);
 
 #endif
