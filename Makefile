@@ -24,7 +24,7 @@ SOURCES += src/inet_extra.c
 SOURCES += src/log.c 
 
 RESOURCES = res/config.json 
-RESOURCES +=
+RESOURCES += res/init.sql 
 
 LIBS = -ldoc 
 LIBS += -lplibsysstatic 

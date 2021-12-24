@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/types.h>
 #include <time.h>
 #include <plibsys.h>
 #include <sys/socket.h>
@@ -29,7 +30,9 @@ pthread_t discovery_transmitter_thread;
 
 PSemaphore *discovery_ping_signal;
 
-doc *cache = NULL;
+PRWLock *db_lock;
+
+db_t *db;
 
 /* ----------------------------------------- Functions ---------------------------------------- */
 
@@ -45,30 +48,39 @@ void *discovery_transmitter_thread_routine(void *data);
 /* ----------------------------------------- Main --------------------------------------------- */
 
 // entry point main
-int main(int argc, char **argv){
+int main(int argq, char **argv){
+
+    // ! TEMP
+    if(argq < 2){
+        printf("Pass the profile number.\n");
+        return -1;
+    }
+
+    uint32_t profile_id = atoi(argv[1]);
+    // ! TEMP
+
 
     // init routines
     p_libsys_init();
-    config_init(0);
+    config_init(profile_id);
+
+    db = db_init();
+    if(db == NULL){
+        log_error("error initializing sqlite databse.\n");
+        return -1;
+    }
 
     // log file
     char buffer[500];
     snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
     // log_set_output_file(buffer, "w+");
 
-    // cache where threads can read/write information
-    cache = doc_new("cache", dt_obj,
-        "nodes", dt_obj, ";",
-        ";"
-    );
-
     // variable for plibsys errors
     PError *err = NULL;
     
     // create semaphore for discovery transmitter communication
     char sem_name[50] = {0};
-    // unique name for semaphore
-    snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid());
+    snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid()); // unique name for semaphore
     discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
     if(discovery_ping_signal == NULL || err != NULL){
         log_error("Error while creating psemaphore\n");
@@ -77,6 +89,13 @@ int main(int argc, char **argv){
             p_error_free(err);
             err = NULL;
         }
+        return -1;
+    }
+
+    // initalize lock for database read/write
+    db_lock = p_rwlock_new();
+    if(db_lock == NULL){
+        log_error("error initializing sqlite database rwlock.\n");
         return -1;
     }
 
@@ -172,11 +191,15 @@ int main(int argc, char **argv){
 // err and die
 void static inline err_and_die(void){
     endwin();
-    // pthread_join(discovery_receiver_thread, NULL);
+    
     pthread_cancel(discovery_receiver_thread);
     pthread_cancel(discovery_transmitter_thread);
     p_semaphore_take_ownership(discovery_ping_signal);
     p_semaphore_release(discovery_ping_signal, NULL);
+
+    p_rwlock_free(db_lock);
+    db_delete(db);
+
     config_save();
     config_end();
     p_libsys_shutdown();

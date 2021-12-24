@@ -112,14 +112,14 @@ void config_init(uint32_t profile_id){
     // profile information
     doc *profiles = doc_get_ptr(config_doc, "profiles");
     for(doc_loop(profile, profiles)){
-        if(doc_get_ptr(profile, "id") == NULL){
+        if(doc_get_ptr(profile, "uuid") == NULL){
             uuid_t uuid; 
             uuid_generate(uuid);
             char *uuid_str = (char*)calloc(37, sizeof(char));
 
             uuid_unparse_lower(uuid, uuid_str);
 
-            doc_add(profile, ".", "id", dt_string, uuid_str, strlen(uuid_str) + 1, ";");
+            doc_add(profile, ".", "uuid", dt_string, uuid_str, strlen(uuid_str) + 1, ";");
         }
     }
     snprintf(path, buffer_path_len, "profiles[%u]", profile_id);

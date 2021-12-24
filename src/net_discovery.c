@@ -168,24 +168,24 @@ void discovery_receiver_respond(PSocket *client, PSocketAddress *remote_address,
     switch(msg_type){
         case msg_type_ping:
             {
-                char *name = config_get("info.name", char*);
+                doc *info = doc_copy(profile_doc, ".");
+                doc_rename(info, ".", "info");
                 
                 doc *res = doc_new(
                 "res", dt_obj,
                     "type", dt_int32, msg_type_info,
-                    "info", dt_obj, 
-                        "name", dt_const_string, name, (size_t)(strlen(name) + 1),
-                    ";", 
                 ";");
+
+                doc_append(res, ".", info);
 
                 char *res_str = doc_json_stringify(res);
 
                 if(res_str == NULL){
                     res_str = "{\"type\": 0}";
-                    p_socket_send_to(client, remote_address, res_str, strlen(res_str), NULL);
+                    p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
                 }
                 else{
-                    p_socket_send_to(client, remote_address, res_str, strlen(res_str), NULL);
+                    p_socket_send_to(client, remote_address, res_str, strlen(res_str) + 1, NULL);
                     free(res_str);
                 }
 
@@ -226,7 +226,7 @@ void discovery_receiver_listen(discovery_receiver_t *discovery_receiver){
     // get network interface info
     inet_addresses_t *interfaces = inet_get_if_addresses();
 
-    // receive until receive d bytes are less than buffer size
+    // receive until received bytes are less than buffer size
     do{
         if(remote_address != NULL)
             p_socket_address_free(remote_address);
