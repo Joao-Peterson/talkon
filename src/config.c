@@ -3,6 +3,7 @@
 #include <errno.h>
 
 #include "config.h"
+#include "log.h"
 #include <doc.h>
 #include <doc_json.h>
 #include <plibsys.h>
@@ -105,7 +106,8 @@ void config_init(uint32_t profile_id){
     }
 
     if(config_doc == NULL){
-        printf("config.json file: %s\n", doc_get_error_msg());
+        log_error("config.json file could not be read, it's corrupted or empty.\n");
+        log_error("[C_DOC] config.json file: %s\n", doc_get_error_msg());
         exit(-1);
     }
 

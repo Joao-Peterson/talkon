@@ -1,3 +1,4 @@
+#include <curses.h>
 #include <netinet/in.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -26,20 +27,20 @@
 
 /* ----------------------------------------- Globals ------------------------------------------ */
 
-// max query string len 
-#define sqlite_query_maxlen 1024
-
-/* ----------------------------------------- Globals ------------------------------------------ */
-
 pthread_t discovery_receiver_thread;
 
 pthread_t discovery_transmitter_thread;
 
-PSemaphore *discovery_ping_signal;
+PRWLock *discovery_thread_flags_lock;
 
 PRWLock *db_lock;
 
 db_t *db;
+
+struct discovery_thread_flags_t{
+    bool ping;
+    bool done;
+}discovery_thread_flags;
 
 /* ----------------------------------------- Functions ---------------------------------------- */
 
@@ -72,7 +73,7 @@ int main(int argq, char **argv){
 
     // log file
     char buffer[500];
-    snprintf(buffer, 500, "%s/%s", config_get_config_folder_path(), "log.txt");
+    snprintf(buffer, 500, "%s/%s.%s", config_get_config_folder_path(), profile_get("uuid", char*), "log");
     log_set_output_file(buffer, "w+");
 
     db = db_init();
@@ -81,6 +82,9 @@ int main(int argq, char **argv){
         return -1;
     }
 
+    discovery_thread_flags.done = false;
+    discovery_thread_flags.ping = false;
+
     // greetings!
     // log("logged as \"%s\" uuid: \"%s\", welcome!.\n", profile_get("name", char*), profile_get("uuid", char*));
 
@@ -88,16 +92,23 @@ int main(int argq, char **argv){
     PError *err = NULL;
     
     // create semaphore for discovery transmitter communication
-    char sem_name[50] = {0};
-    snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid()); // unique name for semaphore
-    discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
-    if(discovery_ping_signal == NULL || err != NULL){
-        log_error("Error while creating psemaphore\n");
-        if(err != NULL){
-            log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
-            p_error_free(err);
-            err = NULL;
-        }
+    // char sem_name[50] = {0};
+    // snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid()); // unique name for semaphore
+    // discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
+    // if(discovery_ping_signal == NULL || err != NULL){
+    //     log_error("Error while creating psemaphore discovery_ping_signal.\n");
+    //     if(err != NULL){
+    //         log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
+    //         p_error_free(err);
+    //         err = NULL;
+    //     }
+    //     return -1;
+    // }
+
+    // initalize lock for discovery thread flags struct read/write
+    discovery_thread_flags_lock = p_rwlock_new();
+    if(discovery_thread_flags_lock == NULL){
+        log_error("error initializing discovery_thread_flags_lock.\n");
         return -1;
     }
 
@@ -122,6 +133,7 @@ int main(int argq, char **argv){
 
     // initialize curses
     initscr();
+    keypad(stdscr, true);
     // cbreak();
     timeout(-1);
     noecho();
@@ -147,15 +159,46 @@ int main(int argq, char **argv){
 
     // first render
     update_panels();
-    tui_draw(NULL);
-    tui_draw(NULL);
+    tui_draw();
+    tui_draw();
     refresh();
+
+    // fetch nodes on startup
+    if(tui.nodes != NULL){
+        doc_delete(tui.nodes, ".");
+        tui.nodes = NULL;
+    }    
+    if(db_select_nodes(db, &tui.nodes)){
+        log_error("couldn't fetch nodes from sqlite database.\n");
+    }
 
     // main loop
     while(1){
         
+        int ping_done = false;
+        if(p_rwlock_reader_trylock(discovery_thread_flags_lock)){
+            ping_done = discovery_thread_flags.done;
+            discovery_thread_flags.done = false;
+            p_rwlock_reader_unlock(discovery_thread_flags_lock);
+        }
+        
+        if(ping_done){
+            if(tui.nodes != NULL){
+                doc_delete(tui.nodes, ".");
+                tui.nodes = NULL;
+            }
+            
+            if(db_select_nodes(db, &tui.nodes)){
+                log_error("couldn't fetch nodes from sqlite database.\n");
+            }
+            else{
+                // doc_print(tui.nodes);
+            }
+        }
+
         // ----------------------- draw ------------------------
-        tui_draw(NULL);
+        
+        tui_draw();
         update_panels();
         refresh();
 
@@ -167,26 +210,88 @@ int main(int argq, char **argv){
 
         tui_logic(input);
 
-        switch(input){
-            case 'q':
-                {
-                    err_and_die();
-
-                    // close rfopen() of stderr by log.c
-                    // works without it, lets see how long 
-                    // fclose(stderr);
-                    return 0;
+        switch(tui.cur_sel_win){
+            case window_id_main:
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            fclose(stderr); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
                 }
-                break;
-
-            case 'p':
-                {
-                    p_semaphore_release(discovery_ping_signal, NULL);
+            break;
+            
+            case window_id_nav:
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            fclose(stderr); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
                 }
-                break;
 
+            break;
+            
+            case window_id_nodes:
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            fclose(stderr); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
+
+                    case 'p':
+                        // p_semaphore_release(discovery_ping_signal, NULL);
+                        p_rwlock_writer_lock(discovery_thread_flags_lock);
+                        discovery_thread_flags.ping = true;
+                        p_rwlock_writer_unlock(discovery_thread_flags_lock);
+                    break;
+
+                    case KEY_DOWN:
+                        tui.window_nodes_scroll += 1; // overflow is handled on window draw, because of dynamic dimensions
+                    break;
+
+                    case KEY_UP:
+                        if(tui.window_nodes_scroll > 0)
+                            tui.window_nodes_scroll -= 1;
+                        else 
+                            tui.window_nodes_scroll = 0;
+                    break;
+                }
+
+            break;
+            
+            case window_id_talk:
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            log_close_out(); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
+                }
+
+            break;
+            
+            case window_id_input:
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            fclose(stderr); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
+                }
+
+            break;
+            
             default:
-                break;
+                switch(input){
+                    case 'q':
+                            err_and_die();
+                            fclose(stderr); // close rfopen() of stderr by log.c
+                            return 0;
+                    break;
+                }
+            break;
         }
 
     }
@@ -203,9 +308,10 @@ void static inline err_and_die(void){
     
     pthread_cancel(discovery_receiver_thread);
     pthread_cancel(discovery_transmitter_thread);
-    p_semaphore_take_ownership(discovery_ping_signal);
-    p_semaphore_release(discovery_ping_signal, NULL);
+    // p_semaphore_take_ownership(discovery_ping_signal);
+    // p_semaphore_free(discovery_ping_signal);
 
+    p_rwlock_free(discovery_thread_flags_lock);
     p_rwlock_free(db_lock);
     db_delete(db);
 
@@ -238,70 +344,54 @@ void *discovery_transmitter_thread_routine(void *data){
 
     discovery_transmitter_t *transmitter = discovery_transmitter_init();
     while(1){
-        p_semaphore_acquire(discovery_ping_signal, NULL);
-        doc *nodes = discovery_transmitter_ping(transmitter);
+        // receive semaphore ping signal
+        // p_semaphore_acquire(discovery_ping_signal, NULL);
 
-        if(nodes == NULL || doc_get_size(nodes, ".") == 0){
-            log(
-                "no nodes found on network. Scanned group %s:[%i/%i].\n", 
-                config_get("discovery.address_udp_multicast_group", char*),
-                config_get("discovery.port_udp_discovery_range[0]", int),
-                config_get("discovery.port_udp_discovery_range[1]", int)
-            );
+        bool ping = false;
+
+        if(p_rwlock_reader_trylock(discovery_thread_flags_lock)){
+            ping = discovery_thread_flags.ping;
+            discovery_thread_flags.ping = false;
+            p_rwlock_reader_unlock(discovery_thread_flags_lock);
         }
         
-        if(nodes != NULL && doc_get_size(nodes, ".") > 0){
+        if(ping){
+            doc *nodes = discovery_transmitter_ping(transmitter);
 
-            char query[sqlite_query_maxlen];
-            
-            p_rwlock_writer_lock(db_lock);
-
-            // loop through received nodes in doc *nodes, inserting them into db
-            for(doc_loop(node, nodes)){
-                char *uuid = doc_get(node, "uuid", char*);
-                char *name = doc_get(node, "name", char*);
-
-                doc *pic_doc = doc_get_ptr(node, "pic");
-                char pic[profile_pic_string_len];
-
-                for(doc_loop(line, pic_doc)){
-                    strcat(pic, doc_get(line, ".", char*));    
-
-                    // append line break on every line except the last one
-                    if(line->next != NULL)
-                        strcat(pic, "\n");
-                }
-                    
-                snprintf(
-                    query, sqlite_query_maxlen, 
-                    "insert into nodes (uuid, name, pic) values (\"%s\", \"%s\", \"%s\");", 
-                    uuid, 
-                    name,
-                    pic
+            if(nodes == NULL || doc_get_size(nodes, ".") == 0){
+                log(
+                    "no nodes found on network. Scanned group %s:[%i/%i].\n", 
+                    config_get("discovery.address_udp_multicast_group", char*),
+                    config_get("discovery.port_udp_discovery_range[0]", int),
+                    config_get("discovery.port_udp_discovery_range[1]", int)
                 );
+            }
+            
+            if(nodes != NULL && doc_get_size(nodes, ".") > 0){
 
-                char *sqlite_err; 
+                p_rwlock_writer_lock(db_lock);
 
-                if(sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err) != SQLITE_OK){
-                    log_error("sqlite database couldn't execute the query \"%s\".\n", query);
-
-                    if(sqlite_err != NULL)
-                        log_error("[SQLITE] %s", sqlite_err);
+                // loop through received nodes in doc *nodes, inserting them into db
+                for(doc_loop(node, nodes)){
+                    if(db_insert_node(db, node)){
+                        log_error("error insert discovered node into sqlite database.\n");
+                    }
                 }
-                else{
-                    log("sqlite database executed the query \"%s\".\n", query);
 
-                    if(sqlite_err != NULL)
-                        log_error("[SQLITE] %s", sqlite_err);
-                }
+                p_rwlock_writer_unlock(db_lock);
+
             }
 
-            p_rwlock_writer_unlock(db_lock);
+            if(nodes != NULL)
+                doc_delete(nodes, ".");
 
+            ping = false;
+
+            p_rwlock_writer_lock(discovery_thread_flags_lock);
+            discovery_thread_flags.done = true;
+            p_rwlock_writer_unlock(discovery_thread_flags_lock);
         }
 
-        if(nodes != NULL)
-            doc_delete(nodes, ".");
     }
 
     discovery_transmitter_delete(transmitter);

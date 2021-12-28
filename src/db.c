@@ -5,10 +5,17 @@
 #include <errno.h>
 #include <sqlite3.h>
 #include <plibsys.h>
+#include <doc.h>
+#include <doc_print.h>
+#include <doc_json.h>
 #include "config.h"
+#include "simple_tcp_msg.h"
 #include "log.h"
 
 /* ----------------------------------------- Defines ---------------------------------------- */
+
+// max query string len 
+#define sqlite_query_maxlen 1024
 
 // max len gor buffer path
 #define buffer_path_len 500
@@ -47,6 +54,25 @@ Feel free to add a OS preprocessor switch for OS and implement the necessary fun
 extern const char _binary_res_init_sql_start[];
 
 /* ----------------------------------------- Private functions ------------------------------- */
+
+// calback function for sqlite3_exec() call, used for nodes select queries
+int sqlite_nodes_cb(void *data, int colq, char **colv, char **col_names){
+    doc *nodes_array = (doc*)data;
+
+    doc *node = doc_new("node", dt_obj, ";");
+
+    // log_debug("sqlite_exec_callback: colq: %d.\n", colq);
+
+    for(int i = 0; i < colq; i++){
+        doc_add(node, ".", col_names[i], dt_string, colv[i], (size_t)strlen(colv[i]) + 1);
+        // log_debug("col: %s, val: %s.\n", col_names[i], colv[i]);
+    }
+
+    doc_append(nodes_array, ".", node);
+
+    // 0 on success
+    return 0;
+}
 
 /* ----------------------------------------- Functions --------------------------------------- */
 
@@ -116,4 +142,90 @@ void db_delete(db_t *db){
     free(db);
 }
 
+// insert node query, receives a doc* that should contain the fields "name" dt_string, "uuid" dt_string and "pic" dt_array of dt_string
+int db_insert_node(db_t *db, doc *node_info){
+    char query[sqlite_query_maxlen];
 
+    char *uuid = doc_get(node_info, "uuid", char*);
+    char *name = doc_get(node_info, "name", char*);
+
+    doc *pic_doc = doc_get_ptr(node_info, "pic");
+    char pic[profile_pic_string_len] = {0};
+
+    for(doc_loop(line, pic_doc)){
+        strcat(pic, doc_get(line, ".", char*));    
+
+        // append line break on every line except the last one
+        if(line->next != NULL)
+            strcat(pic, "\n");
+    }
+        
+    snprintf(
+        query, sqlite_query_maxlen, 
+        "insert into nodes (uuid, name, pic) values (\"%s\", \"%s\", \"%s\");", 
+        uuid, 
+        name,
+        pic
+    );
+
+    char *sqlite_err; 
+    int res = sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err) != SQLITE_OK;
+
+    switch(res){
+        case SQLITE_CONSTRAINT:
+            log("sqlite database executed the query \"%s\", node is already registered onto the database.\n", query);
+
+            if(sqlite_err != NULL)
+                log("[SQLITE] %s", sqlite_err);
+
+            return 0;
+        break;
+        
+        case SQLITE_OK:
+            log("sqlite database executed the query \"%s\".\n", query);
+
+            if(sqlite_err != NULL)
+                log("[SQLITE] %s", sqlite_err);
+
+            return 0;
+        break;
+
+        default:
+            log_error("sqlite database couldn't execute the query \"%s\".\n", query);
+
+            if(sqlite_err != NULL)
+                log_error("[SQLITE] %s", sqlite_err);
+
+            return 1;
+        break;
+    }
+}
+
+// select all nodes from database
+int db_select_nodes(db_t *db, doc **nodes_array){
+    char *sqlite_err;
+    char query[sqlite_query_maxlen];
+    doc *query_res = doc_new("nodes", dt_obj, ";");
+
+    snprintf(
+        query, sqlite_query_maxlen, 
+        "select name, pic, uuid from nodes;"
+    );
+
+    if(sqlite3_exec(db->sqlite_db, query, sqlite_nodes_cb, (void*)query_res, &sqlite_err) != SQLITE_OK){
+        log_error("couldn't execute query \"%s\".\n", query);
+
+        if(sqlite_err != NULL)
+            log_error("[SQLITE] \"%s\".\n", sqlite_err);
+
+        doc_delete(query_res, ".");
+        *nodes_array = NULL;
+        return 1;
+    }
+    else{
+        log("executed the query \"%s\".\n", query);
+        *nodes_array = query_res;
+        log("%s\n", doc_json_stringify(query_res));
+        return 0;
+    }
+}

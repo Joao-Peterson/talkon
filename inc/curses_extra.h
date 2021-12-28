@@ -58,6 +58,7 @@ typedef struct{
 
 /* ----------------------------------------- Globals ---------------------------------------- */
 
+extern frame_charset_t frame_noframe;
 extern frame_charset_t frame_normal;
 extern frame_charset_t frame_dotted;
 extern frame_charset_t frame_dotted_corner_slash;

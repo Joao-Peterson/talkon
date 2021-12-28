@@ -131,8 +131,8 @@ void strlnmaxw(char *string, size_t *lines, size_t *max_w){
             (*max_w)--;
             if(*max_w > last_max_w){
                 last_max_w = *max_w;
-                *max_w = 0;
             }
+            *max_w = 0;
                 
             (*lines)++;
         }

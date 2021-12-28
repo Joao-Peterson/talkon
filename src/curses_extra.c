@@ -2,6 +2,7 @@
 
 /* ----------------------------------------- Globals ---------------------------------------- */
 
+frame_charset_t frame_noframe;
 frame_charset_t frame_normal;
 frame_charset_t frame_dotted;
 frame_charset_t frame_dotted_corner_slash;
@@ -17,6 +18,7 @@ frame_charset_t frame_solid;
 
 // init frames
 void curses_extra_init(void){
+    frame_charset_t tmp_frame_noframe = { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' };
     frame_charset_t tmp_frame_normal = { ACS_VLINE, ACS_VLINE, ACS_HLINE, ACS_HLINE, ACS_ULCORNER, ACS_URCORNER, ACS_LLCORNER, ACS_LRCORNER };
     frame_charset_t tmp_frame_dotted = { '|', '|', '-', '-', 126 | A_ALTCHARSET, 126 | A_ALTCHARSET, 126 | A_ALTCHARSET, 126 | A_ALTCHARSET };
     frame_charset_t tmp_frame_square_brackets = { '[', ']', ' ', ' ', ' ', ' ', ' ', ' ' };
@@ -28,6 +30,7 @@ void curses_extra_init(void){
     frame_charset_t tmp_frame_dotted_corner_slash = { '|', '|', '-', '-', '/', '\\', '\\', '/' };
     frame_charset_t tmp_frame_dotted_corner_star = { '|', '|', '-', '-', '*', '*', '*', '*' };
 
+    frame_noframe = tmp_frame_noframe;
     frame_normal = tmp_frame_normal;
     frame_dotted = tmp_frame_dotted;
     frame_square_brackets = tmp_frame_square_brackets;

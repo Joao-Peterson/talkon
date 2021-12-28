@@ -1,31 +1,19 @@
 #include "curses_extra.h"
+#include "db.h"
 #include "strfmt.h"
 #include "tui.h"
 #include "config.h"
+#include "simple_tcp_msg.h"
+#include <stdio.h>
+#include <curses.h>
 #include <doc.h>
+#include <math.h>
+#include "log.h"
 
 /* ----------------------------------------- Structs ---------------------------------------- */
 
 // global tui object
-struct tui_t{
-    struct{
-        curses_window_t main;
-        curses_window_t nav;
-        curses_window_t nodes;
-        curses_window_t talk;
-        curses_window_t input;
-    }windows;
-
-    int terminal_h;
-    int terminal_w;
-
-    frame_charset_t window_frame_normal;
-    frame_charset_t window_frame_selected;
-
-    window_id_t cur_sel_win;
-
-    doc *config;
-}tui;
+tui_t tui;
 
 /* ----------------------------------------- Functions -------------------------------------- */
 
@@ -68,12 +56,18 @@ void tui_init(void){
     tui.windows.input.win = newwin(0, 0, 0, 0);
     tui.windows.input.pan = new_panel(tui.windows.input.win);
 
+    tui.nodes = NULL;
+
+    tui.window_nodes_scroll = 0;
+    tui.window_input_scroll = 0;
+    tui.window_talk_scroll = 0;
+
     // refresh curses
     refresh();
 }
 
 // main window draw function
-void main_window(void *data){
+void main_window(void){
     wclear(tui.windows.main.win);
     wresize(tui.windows.main.win, tui.terminal_h, tui.terminal_w);
 
@@ -89,7 +83,7 @@ void main_window(void *data){
 }
 
 // nav window draw function
-void nav_window(void *data){
+void nav_window(void){
     wclear(tui.windows.nav.win);
     tui.windows.nav.size.h = 3;
     tui.windows.nav.size.w = tui.terminal_w - 2;
@@ -110,7 +104,7 @@ void nav_window(void *data){
 }
 
 // nodes window draw function
-void nodes_window(void *data){
+void nodes_window(void){
     wclear(tui.windows.nodes.win);
     tui.windows.nodes.size.h = tui.terminal_h - 5;
     tui.windows.nodes.size.w = tui.terminal_w * 0.4;
@@ -127,14 +121,92 @@ void nodes_window(void *data){
     {
         wdraw_rect(tui.windows.nodes.win, tui.windows.nodes.size.h, tui.windows.nodes.size.w, 0, 0, frame_normal, ' ');
         mvwprintw(tui.windows.nodes.win, 0, 3, " Network ");
-        
-        wdraw_label(
-            tui.windows.nodes.win, "#1234\njoao-peterson\n192.168.1.255:4092", 
-            1, 1, 5, 5, tui.windows.nodes.size.w - 2, tui.windows.nodes.size.w - 2,
-            (strfmt_t)(strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
-            frame_dotted, ' ',
-            NULL
-        );
+
+        size_t nodes_max =  (size_t)floor((double)(tui.windows.nodes.size.h-2) / (double)(profile_pic_height+2));
+        log_debug("node_max: %i.\n", nodes_max);
+        size_t nodes_q = doc_get_size(tui.nodes, ".");
+        size_t scroll_size = (size_t)((double)(tui.windows.nodes.size.h - 4) / (double)nodes_max);
+        log_debug("scroll_size: %i.\n", scroll_size);
+
+        log_debug("window_nodes_scroll before: %i.\n", tui.window_nodes_scroll);
+        if((tui.window_nodes_scroll * nodes_max) > nodes_q)
+            tui.window_nodes_scroll = nodes_q / nodes_max;
+
+        log_debug("window_nodes_scroll after: %i.\n", tui.window_nodes_scroll);
+
+        // scroll bar
+        size_t max_w = tui.windows.nodes.size.h - 2;
+        for(size_t i = 1; i <= max_w; i++){
+            if(i == 1)
+                mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, '+');
+
+            else if(i == max_w)
+                mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, '-');
+                
+            // scroll handle
+            else{                                   
+                size_t start = 2 + tui.window_nodes_scroll*scroll_size;                 
+                size_t end = start + scroll_size;                 
+                if(i >= start && i < end)
+                    mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, ACS_CKBOARD);
+
+                else
+                    mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, ACS_VLINE);
+            }
+        }
+
+        // draw nodes
+        if(tui.nodes != NULL && nodes_q > 0){
+
+            size_t i = 0;
+            for(doc_loop(node, tui.nodes)){
+
+                if(i >= tui.window_nodes_scroll){
+                    
+                    if(i >= (nodes_max + tui.window_nodes_scroll))
+                        break;
+
+                    log_debug("printing node[%i].\n", i);
+
+                    // profile pic + border
+                    wdraw_label(
+                        tui.windows.nodes.win, doc_get(node, "pic", char*), 
+                        (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 1, 1, 7, 7, 
+                        tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
+                        (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                        frame_dotted, ' ',
+                        NULL
+                    );
+
+                    // name + id
+                    char buffer[500];
+                    snprintf(buffer, 500, "%s\n%s", doc_get(node, "name", char*), doc_get(node, "uuid", char*));
+                    wdraw_label(
+                        tui.windows.nodes.win, buffer, 
+                        (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 2,
+                        profile_pic_width, 5, 5, 
+                        3, tui.windows.nodes.size.w - 3 - profile_pic_width,
+                        (strfmt_t)(strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                        frame_noframe, ' ',
+                        NULL
+                    );
+
+                }
+
+                i++;
+            }
+            
+        }
+        else{
+            wdraw_label(
+                tui.windows.nodes.win, "No known nodes available!", 
+                1, 1, 3, 4, tui.windows.nodes.size.w - 2, tui.windows.nodes.size.w - 2,
+                (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                frame_dotted, ' ',
+                NULL
+            );
+        }
+
     }
 
     if(tui.cur_sel_win == window_id_nodes)
@@ -144,7 +216,7 @@ void nodes_window(void *data){
 }
 
 // talk window draw function
-void talk_window(void *data){
+void talk_window(void){
     wclear(tui.windows.talk.win);
     tui.windows.talk.size.h = tui.terminal_h - 5 - tui.windows.input.size.h;
     tui.windows.talk.size.w = tui.windows.input.size.w;
@@ -170,7 +242,7 @@ void talk_window(void *data){
 }
 
 // input window draw function
-void input_window(void *data){
+void input_window(void){
     wclear(tui.windows.input.win);
     tui.windows.input.pan = new_panel(tui.windows.input.win);
     tui.windows.input.size.h = 7;
@@ -197,24 +269,24 @@ void input_window(void *data){
 }
 
 // draw to curses
-void tui_draw(void *data){
+void tui_draw(void){
 
     getmaxyx(stdscr, tui.terminal_h, tui.terminal_w);
 
     // main window
-    main_window(data);
+    main_window();
 
     // navbar / menu
-    nav_window(data);
+    nav_window();
 
     // nodes / network
-    nodes_window(data);
+    nodes_window();
 
     // talk / chat
-    talk_window(data);
+    talk_window();
 
     // input
-    input_window(data);
+    input_window();
 }
 
 // logic

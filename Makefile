@@ -29,6 +29,7 @@ RESOURCES += res/init.sql
 
 LIBS = -ldoc 
 LIBS += -lplibsysstatic 
+LIBS += -lm 
 LIBS += -pthread
 LIBS += -ldl
 LIBS += -lsqlite3
