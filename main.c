@@ -248,14 +248,11 @@ int main(int argq, char **argv){
                     break;
 
                     case KEY_DOWN:
-                        tui.window_nodes_scroll += 1; // overflow is handled on window draw, because of dynamic dimensions
+                        tui.cur_sel_node++; // scroll overflow is handled on window draw, because of dynamic dimensions
                     break;
 
                     case KEY_UP:
-                        if(tui.window_nodes_scroll > 0)
-                            tui.window_nodes_scroll -= 1;
-                        else 
-                            tui.window_nodes_scroll = 0;
+                        tui.cur_sel_node--; // scroll underflow is handled on window draw, because of dynamic dimensions
                     break;
                 }
 

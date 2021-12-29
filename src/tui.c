@@ -4,6 +4,7 @@
 #include "tui.h"
 #include "config.h"
 #include "simple_tcp_msg.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <curses.h>
 #include <doc.h>
@@ -61,6 +62,8 @@ void tui_init(void){
     tui.window_nodes_scroll = 0;
     tui.window_input_scroll = 0;
     tui.window_talk_scroll = 0;
+
+    tui.cur_sel_node = 0;
 
     // refresh curses
     refresh();
@@ -122,30 +125,39 @@ void nodes_window(void){
         wdraw_rect(tui.windows.nodes.win, tui.windows.nodes.size.h, tui.windows.nodes.size.w, 0, 0, frame_normal, ' ');
         mvwprintw(tui.windows.nodes.win, 0, 3, " Network ");
 
-        size_t nodes_max =  (size_t)floor((double)(tui.windows.nodes.size.h-2) / (double)(profile_pic_height+2));
-        log_debug("node_max: %i.\n", nodes_max);
         size_t nodes_q = doc_get_size(tui.nodes, ".");
-        size_t scroll_size = (size_t)((double)(tui.windows.nodes.size.h - 4) / (double)nodes_max);
-        log_debug("scroll_size: %i.\n", scroll_size);
+        size_t nodes_max =  (size_t)floor((double)(tui.windows.nodes.size.h-2) / (double)(profile_pic_height+2));
+        size_t scroll_size = (size_t)((double)(tui.windows.nodes.size.h - 4) / (double)nodes_q);
 
-        log_debug("window_nodes_scroll before: %i.\n", tui.window_nodes_scroll);
-        if((tui.window_nodes_scroll * nodes_max) > nodes_q)
-            tui.window_nodes_scroll = nodes_q / nodes_max;
-
-        log_debug("window_nodes_scroll after: %i.\n", tui.window_nodes_scroll);
+        // jump to the last one on underflow
+        if(tui.cur_sel_node == SIZE_MAX){
+            tui.cur_sel_node = (nodes_q-1);
+            tui.window_nodes_scroll = tui.cur_sel_node;
+        }
+        // jump to first one on overflow
+        else if(tui.cur_sel_node == nodes_q){
+            tui.cur_sel_node = 0;
+            tui.window_nodes_scroll = 0;
+        }
+        
+        // shift the viewport(scroll) according to the current selected node
+        if(tui.cur_sel_node >= (tui.window_nodes_scroll+nodes_max))
+            tui.window_nodes_scroll++;
+        else if(tui.cur_sel_node < tui.window_nodes_scroll)
+            tui.window_nodes_scroll--;
 
         // scroll bar
-        size_t max_w = tui.windows.nodes.size.h - 2;
-        for(size_t i = 1; i <= max_w; i++){
+        size_t max_h = tui.windows.nodes.size.h - 2;
+        for(size_t i = 1; i <= max_h; i++){
             if(i == 1)
                 mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, '+');
 
-            else if(i == max_w)
+            else if(i == max_h)
                 mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, '-');
                 
             // scroll handle
             else{                                   
-                size_t start = 2 + tui.window_nodes_scroll*scroll_size;                 
+                size_t start = 2 + tui.cur_sel_node*scroll_size;                 
                 size_t end = start + scroll_size;                 
                 if(i >= start && i < end)
                     mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, ACS_CKBOARD);
@@ -161,12 +173,16 @@ void nodes_window(void){
             size_t i = 0;
             for(doc_loop(node, tui.nodes)){
 
-                if(i >= tui.window_nodes_scroll){
+                if(i >= tui.window_nodes_scroll && i < (tui.window_nodes_scroll + nodes_max)){
                     
-                    if(i >= (nodes_max + tui.window_nodes_scroll))
-                        break;
-
                     log_debug("printing node[%i].\n", i);
+
+                    // current selected node 
+                    frame_charset_t frame;
+                    if(i == tui.cur_sel_node)
+                        frame = frame_dotted;
+                    else
+                        frame = frame_normal;
 
                     // profile pic + border
                     wdraw_label(
@@ -174,7 +190,7 @@ void nodes_window(void){
                         (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 1, 1, 7, 7, 
                         tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
                         (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
-                        frame_dotted, ' ',
+                        frame, ' ',
                         NULL
                     );
 
@@ -190,7 +206,6 @@ void nodes_window(void){
                         frame_noframe, ' ',
                         NULL
                     );
-
                 }
 
                 i++;

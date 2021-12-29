@@ -43,6 +43,7 @@ typedef struct{
     }windows;
 
     size_t window_nodes_scroll;
+    size_t cur_sel_node;
     size_t window_talk_scroll;
     size_t window_input_scroll;
 
