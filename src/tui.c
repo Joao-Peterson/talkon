@@ -65,6 +65,9 @@ void tui_init(void){
 
     tui.cur_sel_node = 0;
 
+    tui.ping_icon = loading_icon_new(100, 3);
+    tui.ping_icon_show = false;
+    
     // refresh curses
     refresh();
 }
@@ -98,9 +101,10 @@ void nav_window(void){
 
     {
         wdraw_rect(tui.windows.nav.win, tui.windows.nav.size.h, tui.windows.nav.size.w, 0, 0, frame_normal, ' ');
-        // wborder_frame(tui.windows.nav.win, frame_normal);
-        wdraw_rect(tui.windows.nav.win, 1, tui.windows.nav.size.w - 2, 1, 1, frame_grain_thin, ' ');
-        mvwprintw(tui.windows.nav.win, 1, 3, profile_get("name", char*));
+        // wdraw_rect(tui.windows.nav.win, 1, tui.windows.nav.size.w - 2, 1, 1, frame_grain_thin, ' ');
+        char title[500] = {0};
+        snprintf(title, 500, "Logged as: %s", profile_get("name", char*));
+        mvwprintw(tui.windows.nav.win, 1, 2, title);
     }
     
     wattroff(tui.windows.nav.win, COLOR_PAIR(color_pair_border));
@@ -115,15 +119,24 @@ void nodes_window(void){
     tui.windows.nodes.size.x = 1;
     wsetsize(tui.windows.nodes.win, tui.windows.nodes.size);
 
+    // border
     if(tui.cur_sel_win == window_id_nodes)
         wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
     else
         wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
 
-    // draw commands
     {
         wdraw_rect(tui.windows.nodes.win, tui.windows.nodes.size.h, tui.windows.nodes.size.w, 0, 0, frame_normal, ' ');
         mvwprintw(tui.windows.nodes.win, 0, 3, " Network ");
+    }
+    
+    if(tui.cur_sel_win == window_id_nodes)
+        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
+    else
+        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+
+    // draw commands
+    {
 
         size_t nodes_q = doc_get_size(tui.nodes, ".");
         size_t nodes_max =  (size_t)floor((double)(tui.windows.nodes.size.h-2) / (double)(profile_pic_height+2));
@@ -147,6 +160,7 @@ void nodes_window(void){
             tui.window_nodes_scroll--;
 
         // scroll bar
+        wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
         size_t max_h = tui.windows.nodes.size.h - 2;
         for(size_t i = 1; i <= max_h; i++){
             if(i == 1)
@@ -166,6 +180,8 @@ void nodes_window(void){
                     mvwaddch(tui.windows.nodes.win, i, tui.windows.nodes.size.w - 2, ACS_VLINE);
             }
         }
+        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+
 
         // draw nodes
         if(tui.nodes != NULL && nodes_q > 0){
@@ -179,10 +195,14 @@ void nodes_window(void){
 
                     // current selected node 
                     frame_charset_t frame;
-                    if(i == tui.cur_sel_node)
-                        frame = frame_dotted;
-                    else
-                        frame = frame_normal;
+                    if(i == tui.cur_sel_node){
+                        wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
+                        frame = tui.window_frame_selected;
+                    }
+                    else{
+                        frame = tui.window_frame_normal;
+                        wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+                    }
 
                     // profile pic + border
                     wdraw_label(
@@ -200,12 +220,19 @@ void nodes_window(void){
                     wdraw_label(
                         tui.windows.nodes.win, buffer, 
                         (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 2,
-                        profile_pic_width, 5, 5, 
-                        3, tui.windows.nodes.size.w - 3 - profile_pic_width,
+                        profile_pic_width + 2, 5, 5, 
+                        3, tui.windows.nodes.size.w - 5 - profile_pic_width,
                         (strfmt_t)(strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
                         frame_noframe, ' ',
                         NULL
                     );
+
+                    if(i == tui.cur_sel_node){
+                        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
+                    }
+                    else{
+                        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+                    }
                 }
 
                 i++;
@@ -215,19 +242,13 @@ void nodes_window(void){
         else{
             wdraw_label(
                 tui.windows.nodes.win, "No known nodes available!", 
-                1, 1, 3, 4, tui.windows.nodes.size.w - 2, tui.windows.nodes.size.w - 2,
+                1, 1, 3, 4, tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
                 (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
                 frame_dotted, ' ',
                 NULL
             );
         }
-
     }
-
-    if(tui.cur_sel_win == window_id_nodes)
-        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border_highlight));
-    else
-        wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
 }
 
 // talk window draw function
@@ -283,25 +304,53 @@ void input_window(void){
         wattroff(tui.windows.input.win, COLOR_PAIR(color_pair_border));
 }
 
+// animations layer
+void animation_layer(void){
+    wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+    
+    // draw ping icon 
+    if(tui.ping_icon_show){
+        log_debug("drawing ping icon.\n");
+        loading_icon_draw(tui.ping_icon, tui.windows.nodes.win, 
+            (int)(tui.windows.nodes.size.h) - (int)(tui.ping_icon->size) - 1,
+            1
+        );
+    }
+
+    wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
+}
+
 // draw to curses
-void tui_draw(void){
+void tui_draw(tui_layer_t layer){
 
     getmaxyx(stdscr, tui.terminal_h, tui.terminal_w);
 
-    // main window
-    main_window();
+    switch(layer) {
+        // base layer, update on interaction
+        case tui_layer_base:
+            // main window
+            main_window();
 
-    // navbar / menu
-    nav_window();
+            // navbar / menu
+            nav_window();
 
-    // nodes / network
-    nodes_window();
+            // nodes / network
+            nodes_window();
 
-    // talk / chat
-    talk_window();
+            // talk / chat
+            talk_window();
 
-    // input
-    input_window();
+            // input
+            input_window();
+
+            break;
+
+        // animated layer, updated on timing
+        case tui_layer_animations:
+            animation_layer();
+            break;
+        
+    }
 }
 
 // logic
@@ -326,4 +375,10 @@ void tui_logic(int input){
             }
             break;
     }
+}
+
+// close tui
+void tui_end(void){
+    doc_delete(tui.nodes, ".");
+    loading_icon_delete(tui.ping_icon);
 }

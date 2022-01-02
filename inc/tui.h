@@ -30,6 +30,11 @@ typedef enum{
     color_border_highlight,
 }color_palette_t;
 
+typedef enum{
+    tui_layer_base          = 0x01,                   
+    tui_layer_animations    = 0x02                           
+}tui_layer_t;
+
 /* ----------------------------------------- Struct's ----------------------------------------- */
 
 // tui meta info struct
@@ -55,6 +60,9 @@ typedef struct{
 
     window_id_t cur_sel_win;
 
+    loading_icon_t *ping_icon;
+    bool ping_icon_show;
+
     doc *nodes;
 }tui_t; 
 
@@ -68,9 +76,12 @@ extern tui_t tui;
 void tui_init(void);
 
 // draw to curses
-void tui_draw(void);
+void tui_draw(tui_layer_t layer);
 
 // logic
 void tui_logic(int input);
+
+// close tui
+void tui_end(void);
 
 #endif

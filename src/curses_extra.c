@@ -1,4 +1,9 @@
 #include "curses_extra.h"
+#include <curses.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 /* ----------------------------------------- Globals ---------------------------------------- */
 
@@ -153,3 +158,81 @@ void wdraw_label(WINDOW *win, char *text, int y, int x, int minh, int maxh,
     free(text_fmt);
 }
 
+// creates a loading icon object with a "time_ms" update time and with "size" elements on a side
+loading_icon_t *loading_icon_new(uint32_t time_ms, uint32_t size){
+    loading_icon_t *icon = (loading_icon_t*)calloc(1, sizeof(loading_icon_t));
+
+    if(size < 2) return NULL;
+
+    icon->time_ms = time_ms;
+    icon->size = size;
+    icon->buffer_size = (size - 2)*4 + 4; // icon side has size "size", thus the whole perimeter is the 4 corners + the middle sections (size-2)*4
+    icon->buffer = (chtype*)calloc(icon->buffer_size, sizeof(chtype));
+
+    for(size_t i = 0; i < icon->buffer_size; i++)
+        icon->buffer[i] = ' '; 
+
+    icon->buffer[0] = ACS_CKBOARD;
+    icon->buffer[1] = ACS_CKBOARD;
+    icon->buffer[2] = ACS_CKBOARD;
+
+    icon->time_profiler = p_time_profiler_new(); 
+    icon->last_time = 0;
+
+    return icon;
+}
+
+// updates the icon according to the preset time 
+void loading_icon_draw(loading_icon_t *icon, WINDOW *win, int y, int x){
+
+    // update buffer on time
+    uint64_t time_now = p_time_profiler_elapsed_usecs(icon->time_profiler);
+    if((time_now - icon->last_time) > (icon->time_ms*1000)){
+
+        p_time_profiler_reset(icon->time_profiler);
+
+        // shift the buffer one time forwards
+        chtype temp = icon->buffer[icon->buffer_size - 1];
+        for(size_t i = icon->buffer_size - 1; i > 0; i--){
+            icon->buffer[i] = icon->buffer[i-1]; 
+        }
+        icon->buffer[0] = temp;
+    }
+    
+    // draw the square on screen
+    for(uint32_t i = 0; i < 4; i++){
+        for(uint32_t j = 0; j < (icon->size-1); j++){
+            switch(i){
+                // top
+                case 0:
+                    // mvwaddch(win, y, x + j, (i*(icon->size-1) + j)+48);
+                    mvwaddch(win, y, x + j, icon->buffer[i*(icon->size-1) + j]);
+                    break;
+
+                // right
+                case 1:
+                    // mvwaddch(win, y + j, x + (icon->size-1), (i*(icon->size-1) + j)+48);
+                    mvwaddch(win, y + j, x + (icon->size-1), icon->buffer[i*(icon->size-1) + j]);
+                    
+                // bottom
+                case 2:
+                    // mvwaddch(win, y + (icon->size-1), (icon->size-1 + x) - j, (i*(icon->size-1) + j)+48);
+                    mvwaddch(win, y + (icon->size-1), (icon->size-1 + x) - j, icon->buffer[i*(icon->size-1) + j]);
+                    break;
+
+                // left
+                case 3:
+                    // mvwaddch(win, (icon->size-1 + y) - j, x, (i*(icon->size-1) + j)+48);
+                    mvwaddch(win, (icon->size-1 + y) - j, x, icon->buffer[i*(icon->size-1) + j]);
+                    break;
+            }
+        }
+    }
+}
+
+// delete loading icon object
+void loading_icon_delete(loading_icon_t *icon){
+    free(icon->buffer);
+    p_time_profiler_free(icon->time_profiler);
+    free(icon);
+}

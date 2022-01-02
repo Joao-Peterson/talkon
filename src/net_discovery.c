@@ -104,7 +104,7 @@ discovery_receiver_t *discovery_receiver_init(void){
                 return NULL;
             }
             else{
-                log_error("Error binding socket in discovery_receiver on udp port [%d] to localhost - retry:[%i]\n", retry+udp_port, retry);
+                log("Error binding socket in discovery_receiver on udp port [%d] to localhost - retry:[%i]\n", retry+udp_port, retry);
                 continue;
             }
         }
@@ -350,7 +350,7 @@ discovery_transmitter_t *discovery_transmitter_init(void){
                 return NULL;
             }
             else{
-                log_error("Error binding socket on udp port [%d] to localhost in discovery_transmitter - retry:[%i]\n", retry+udp_port, retry);
+                log("Error binding socket on udp port [%d] to localhost in discovery_transmitter - retry:[%i]\n", retry+udp_port, retry);
                 continue;
             }
         }
@@ -461,11 +461,11 @@ doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
 
         // process the message
         if(received_msg != NULL){
-            log("Received from (%s:%i): %s.\n", 
-                p_socket_address_get_address(remote_address), 
-                p_socket_address_get_port(remote_address), 
-                received_msg
-            );
+
+            char *remote_address_addr = p_socket_address_get_address(remote_address);
+            int remote_address_port = p_socket_address_get_port(remote_address);
+            
+            log("Received from (%s:%i): %s.\n", remote_address_addr, remote_address_port, received_msg);
 
             doc *packet = doc_json_parse(received_msg);
 
@@ -475,6 +475,8 @@ doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
                 
                 if(type == msg_type_info){
                     doc *node = doc_copy(packet, "info");
+                    doc_add(node, ".", "addr", dt_string, remote_address_addr, strlen(remote_address_addr));
+                    doc_add(node, ".", "port", dt_int64, remote_address_port);
                     doc_append(nodes, ".", node);
                 }
                 else{

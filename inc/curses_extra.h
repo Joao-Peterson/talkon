@@ -56,6 +56,18 @@ typedef struct{
     win_size_t size;
 }curses_window_t;
 
+typedef struct{
+    uint32_t time_ms;
+    uint32_t size;
+
+    chtype *buffer;
+    uint32_t buffer_size;
+
+    PTimeProfiler *time_profiler;
+    uint64_t last_time;
+
+}loading_icon_t;
+
 /* ----------------------------------------- Globals ---------------------------------------- */
 
 extern frame_charset_t frame_noframe;
@@ -91,5 +103,13 @@ void mvwprintwln(WINDOW *win, int y, int x, char *string);
 void wdraw_label(WINDOW *win, char *text, int y, int x, int minh, int maxh, 
      int minw, int maxw, strfmt_t fmt, frame_charset_t frame, chtype fill, void *optional_data);
 
+// creates a loading icon object with a "time_ms" update time and with "size" elements on a side
+loading_icon_t *loading_icon_new(uint32_t time_ms, uint32_t size);
+
+// updates the icon according to the preset time 
+void loading_icon_draw(loading_icon_t *icon, WINDOW *win, int y, int x);
+
+// delete loading icon object
+void loading_icon_delete(loading_icon_t *icon);
 
 #endif

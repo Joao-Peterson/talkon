@@ -6,7 +6,7 @@
 
 /* ----------------------------------------- Defines ------------------------------------------ */
 
-#define LOG_FILE_LINE_STR   "[%s.%i] "
+#define LOG_FILE_LINE_STR   "[%s:%i] "
 
 /* ----------------------------------------- Prototypes --------------------------------------- */
 
@@ -23,5 +23,7 @@ void log_set_output_file(char *filename, char *restric_mode);
 #define log_error(format_string, ...)   logprintf(LOG_FILE_LINE_STR "[ERROR] " format_string, __FILE__, __LINE__, ##__VA_ARGS__)
 
 #define log_close_out()                 fclose(stderr)
+
+#define log_flush()                     fflush(stderr)
 
 #endif

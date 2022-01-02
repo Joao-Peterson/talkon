@@ -30,12 +30,12 @@
             5000,
             5009
         ],
-        "timeout_ms": 1000
+        "timeout_ms": 350
     },
     "messaging": {
         "port_tcp_listen": 5020,
         "port_tcp_send": 5030,
         "port_retry_num": 9,
-        "timeout_ms": 1000
+        "timeout_ms": 350
     }
 }

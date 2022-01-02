@@ -18,7 +18,8 @@ db_t *db_init(void);
 // delete database object
 void db_delete(db_t *db);
 
-// insert node query, receives a doc* that should contain the fields "name" dt_string, "uuid" dt_string and "pic" dt_array of dt_string
+// insert node query, receives a doc* that should contain the fields "name" dt_string, 
+// "uuid" dt_string, "addr" dt_string and "pic" dt_array of dt_string
 int db_insert_node(db_t *db, doc *node_info);
 
 // select all nodes from database

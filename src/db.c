@@ -142,12 +142,15 @@ void db_delete(db_t *db){
     free(db);
 }
 
-// insert node query, receives a doc* that should contain the fields "name" dt_string, "uuid" dt_string and "pic" dt_array of dt_string
+// insert node query, receives a doc* that should contain the fields "name" dt_string, 
+// "uuid" dt_string, "addr" dt_string and "pic" dt_array of dt_string
 int db_insert_node(db_t *db, doc *node_info){
     char query[sqlite_query_maxlen];
 
     char *uuid = doc_get(node_info, "uuid", char*);
     char *name = doc_get(node_info, "name", char*);
+    char *addr = doc_get(node_info, "addr", char*);
+    int port = doc_get(node_info, "port", int);
 
     doc *pic_doc = doc_get_ptr(node_info, "pic");
     char pic[profile_pic_string_len] = {0};
@@ -162,8 +165,10 @@ int db_insert_node(db_t *db, doc *node_info){
         
     snprintf(
         query, sqlite_query_maxlen, 
-        "insert into nodes (uuid, name, pic) values (\"%s\", \"%s\", \"%s\");", 
+        "insert into nodes (uuid, addr, port, name, pic) values (\"%s\", \"%s\", %i, \"%s\", \"%s\");", 
         uuid, 
+        addr,
+        port,
         name,
         pic
     );
@@ -225,7 +230,7 @@ int db_select_nodes(db_t *db, doc **nodes_array){
     else{
         log("executed the query \"%s\".\n", query);
         *nodes_array = query_res;
-        log("%s\n", doc_json_stringify(query_res));
+        log("query result: %s\n", doc_json_stringify(query_res));
         return 0;
     }
 }

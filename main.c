@@ -42,6 +42,8 @@ struct discovery_thread_flags_t{
     bool done;
 }discovery_thread_flags;
 
+bool last_ping_state = false;
+
 /* ----------------------------------------- Functions ---------------------------------------- */
 
 // err and die
@@ -135,7 +137,7 @@ int main(int argq, char **argv){
     initscr();
     keypad(stdscr, true);
     // cbreak();
-    timeout(-1);
+    timeout(300);
     noecho();
     clear();
     curs_set(0);
@@ -157,12 +159,6 @@ int main(int argq, char **argv){
     curses_extra_init();
     tui_init();
 
-    // first render
-    update_panels();
-    tui_draw();
-    tui_draw();
-    refresh();
-
     // fetch nodes on startup
     if(tui.nodes != NULL){
         doc_delete(tui.nodes, ".");
@@ -172,9 +168,26 @@ int main(int argq, char **argv){
         log_error("couldn't fetch nodes from sqlite database.\n");
     }
 
+    // first render
+    {
+        tui_draw(tui_layer_base);
+        update_panels();
+        refresh();
+        tui_draw(tui_layer_base);
+        update_panels();
+        refresh();
+        tui_draw(tui_layer_base);
+        update_panels();
+        refresh();
+    }
+
     // main loop
     while(1){
         
+        log_flush();
+
+        // ----------------------- treads com. -----------------
+
         int ping_done = false;
         if(p_rwlock_reader_trylock(discovery_thread_flags_lock)){
             ping_done = discovery_thread_flags.done;
@@ -183,11 +196,15 @@ int main(int argq, char **argv){
         }
         
         if(ping_done){
+            log_debug("ping done.\n");
+
             if(tui.nodes != NULL){
                 doc_delete(tui.nodes, ".");
                 tui.nodes = NULL;
             }
-            
+
+            tui.ping_icon_show = false;
+
             if(db_select_nodes(db, &tui.nodes)){
                 log_error("couldn't fetch nodes from sqlite database.\n");
             }
@@ -195,12 +212,6 @@ int main(int argq, char **argv){
                 // doc_print(tui.nodes);
             }
         }
-
-        // ----------------------- draw ------------------------
-        
-        tui_draw();
-        update_panels();
-        refresh();
 
         // ----------------------- input -----------------------
         int input = getch();
@@ -215,7 +226,7 @@ int main(int argq, char **argv){
                 switch(input){
                     case 'q':
                             err_and_die();
-                            fclose(stderr); // close rfopen() of stderr by log.c
+                            log_close_out(); // close rfopen() of stderr by log.c
                             return 0;
                     break;
                 }
@@ -225,7 +236,7 @@ int main(int argq, char **argv){
                 switch(input){
                     case 'q':
                             err_and_die();
-                            fclose(stderr); // close rfopen() of stderr by log.c
+                            log_close_out(); // close rfopen() of stderr by log.c
                             return 0;
                     break;
                 }
@@ -236,12 +247,13 @@ int main(int argq, char **argv){
                 switch(input){
                     case 'q':
                             err_and_die();
-                            fclose(stderr); // close rfopen() of stderr by log.c
+                            log_close_out(); // close rfopen() of stderr by log.c
                             return 0;
                     break;
 
                     case 'p':
-                        // p_semaphore_release(discovery_ping_signal, NULL);
+                        log_debug("sending ping signal.\n");
+                        tui.ping_icon_show = true;
                         p_rwlock_writer_lock(discovery_thread_flags_lock);
                         discovery_thread_flags.ping = true;
                         p_rwlock_writer_unlock(discovery_thread_flags_lock);
@@ -273,7 +285,7 @@ int main(int argq, char **argv){
                 switch(input){
                     case 'q':
                             err_and_die();
-                            fclose(stderr); // close rfopen() of stderr by log.c
+                            log_close_out(); // close rfopen() of stderr by log.c
                             return 0;
                     break;
                 }
@@ -284,13 +296,39 @@ int main(int argq, char **argv){
                 switch(input){
                     case 'q':
                             err_and_die();
-                            fclose(stderr); // close rfopen() of stderr by log.c
+                            log_close_out(); // close rfopen() of stderr by log.c
                             return 0;
                     break;
                 }
             break;
         }
 
+        // ----------------------- draw ------------------------
+        
+        switch(input){
+            // only update animations on timeout
+            case ERR:
+                tui_draw(tui_layer_animations);
+
+                // when an animation or popup disappers, redraw all windows
+                if(tui.ping_icon_show == 0 && last_ping_state == 1)
+                    tui_draw(tui_layer_base);
+                    
+                last_ping_state = tui.ping_icon_show;
+
+                update_panels();
+                refresh();
+                
+                break;
+            
+            // update all layers in case of input
+            default:
+                tui_draw(tui_layer_base);
+                update_panels();
+                refresh();
+                break;
+        }
+        
     }
 
     err_and_die();
@@ -301,6 +339,8 @@ int main(int argq, char **argv){
 
 // err and die
 void static inline err_and_die(void){
+    log("shutting down program normally.\n");
+
     endwin();
     
     pthread_cancel(discovery_receiver_thread);
@@ -311,6 +351,8 @@ void static inline err_and_die(void){
     p_rwlock_free(discovery_thread_flags_lock);
     p_rwlock_free(db_lock);
     db_delete(db);
+
+    tui_end();
 
     config_save();
     config_end();
