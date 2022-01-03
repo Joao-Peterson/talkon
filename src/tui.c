@@ -216,7 +216,13 @@ void nodes_window(void){
 
                     // name + id
                     char buffer[500];
-                    snprintf(buffer, 500, "%s\n%s", doc_get(node, "name", char*), doc_get(node, "uuid", char*));
+                    snprintf(buffer, 500, "%s\n%s\n%s:%i", 
+                        doc_get(node, "name", char*), 
+                        doc_get(node, "uuid", char*),
+                        doc_get(node, "addr", char*),
+                        doc_get(node, "port", int)
+                    );
+
                     wdraw_label(
                         tui.windows.nodes.win, buffer, 
                         (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 2,
@@ -240,6 +246,7 @@ void nodes_window(void){
             
         }
         else{
+            wattron(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
             wdraw_label(
                 tui.windows.nodes.win, "No known nodes available!", 
                 1, 1, 3, 4, tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
@@ -247,6 +254,7 @@ void nodes_window(void){
                 frame_dotted, ' ',
                 NULL
             );
+            wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
         }
     }
 }

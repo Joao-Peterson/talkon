@@ -64,8 +64,8 @@ int sqlite_nodes_cb(void *data, int colq, char **colv, char **col_names){
     // log_debug("sqlite_exec_callback: colq: %d.\n", colq);
 
     for(int i = 0; i < colq; i++){
-        doc_add(node, ".", col_names[i], dt_string, colv[i], (size_t)strlen(colv[i]) + 1);
-        // log_debug("col: %s, val: %s.\n", col_names[i], colv[i]);
+        doc *value = doc_from_string(col_names[i], colv[i]);
+        doc_append(node, ".", value);
     }
 
     doc_append(nodes_array, ".", node);
@@ -155,6 +155,7 @@ int db_insert_node(db_t *db, doc *node_info){
     doc *pic_doc = doc_get_ptr(node_info, "pic");
     char pic[profile_pic_string_len] = {0};
 
+    // mount pic string 
     for(doc_loop(line, pic_doc)){
         strcat(pic, doc_get(line, ".", char*));    
 
@@ -163,6 +164,7 @@ int db_insert_node(db_t *db, doc *node_info){
             strcat(pic, "\n");
     }
         
+    // make query
     snprintf(
         query, sqlite_query_maxlen, 
         "insert into nodes (uuid, addr, port, name, pic) values (\"%s\", \"%s\", %i, \"%s\", \"%s\");", 
@@ -174,18 +176,51 @@ int db_insert_node(db_t *db, doc *node_info){
     );
 
     char *sqlite_err; 
-    int res = sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err) != SQLITE_OK;
+    // execute
+    int res = sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err);
 
+    // 
     switch(res){
+        // if record already exists
         case SQLITE_CONSTRAINT:
             log("sqlite database executed the query \"%s\", node is already registered onto the database.\n", query);
 
             if(sqlite_err != NULL)
                 log("[SQLITE] %s", sqlite_err);
 
-            return 0;
-        break;
+            log("updating node into database.\n");
+
+            // update query
+            snprintf(
+                query, sqlite_query_maxlen, 
+                "update nodes set addr = \"%s\", port = %i where uuid = \"%s\";", 
+                addr,
+                port,
+                uuid
+            );
+
+            res = sqlite3_exec(db->sqlite_db, query, NULL, NULL, &sqlite_err);
+
+            if(res != SQLITE_OK){
+                log_error("sqlite database couldn't execute the query \"%s\".\n", query);
+
+                if(sqlite_err != NULL)
+                    log_error("[SQLITE] %s", sqlite_err);
+
+                return 1;
+            }
+            else{
+                log("sqlite database executed the query \"%s\".\n", query);
+
+                if(sqlite_err != NULL)
+                    log("[SQLITE] %s", sqlite_err);
+
+                return 0;
+            }
+            
+            break;
         
+        // on sucess
         case SQLITE_OK:
             log("sqlite database executed the query \"%s\".\n", query);
 
@@ -193,8 +228,9 @@ int db_insert_node(db_t *db, doc *node_info){
                 log("[SQLITE] %s", sqlite_err);
 
             return 0;
-        break;
+            break;
 
+        // error
         default:
             log_error("sqlite database couldn't execute the query \"%s\".\n", query);
 
@@ -202,7 +238,7 @@ int db_insert_node(db_t *db, doc *node_info){
                 log_error("[SQLITE] %s", sqlite_err);
 
             return 1;
-        break;
+            break;
     }
 }
 
@@ -214,7 +250,7 @@ int db_select_nodes(db_t *db, doc **nodes_array){
 
     snprintf(
         query, sqlite_query_maxlen, 
-        "select name, pic, uuid from nodes;"
+        "select name, pic, uuid, addr, port from nodes;"
     );
 
     if(sqlite3_exec(db->sqlite_db, query, sqlite_nodes_cb, (void*)query_res, &sqlite_err) != SQLITE_OK){

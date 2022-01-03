@@ -205,6 +205,10 @@ int main(int argq, char **argv){
 
             tui.ping_icon_show = false;
 
+            tui_draw(tui_layer_base);
+            update_panels();
+            refresh();
+
             if(db_select_nodes(db, &tui.nodes)){
                 log_error("couldn't fetch nodes from sqlite database.\n");
             }
