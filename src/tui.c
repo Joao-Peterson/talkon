@@ -4,11 +4,13 @@
 #include "tui.h"
 #include "config.h"
 #include "simple_tcp_msg.h"
+#include <string.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <curses.h>
 #include <doc.h>
 #include <math.h>
+// include "log.c" after math.h because the text log function has same name as the math log function
 #include "log.h"
 
 /* ----------------------------------------- Structs ---------------------------------------- */
@@ -37,7 +39,7 @@ void tui_init(void){
     init_pair(color_pair_border, color_border, color_background);
     init_pair(color_pair_border_highlight, color_border_highlight, color_background);
 
-    tui.cur_sel_win = window_id_nodes;
+    tui.cur_sel_win = first_sel_win;
     tui.window_frame_normal = frame_normal;
     tui.window_frame_selected = frame_normal;
 
@@ -68,6 +70,8 @@ void tui_init(void){
     tui.ping_icon = loading_icon_new(100, 3);
     tui.ping_icon_show = false;
     
+    memset(tui.input_buffer, '\0', input_max_len);
+
     // refresh curses
     refresh();
 }
@@ -209,7 +213,7 @@ void nodes_window(void){
                         tui.windows.nodes.win, doc_get(node, "pic", char*), 
                         (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 1, 1, 7, 7, 
                         tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
-                        (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                        (strfmt_t)(strfmt_align_left | strfmt_lines_no_scroll | strfmt_linebreak_no_wrap_dot_dot_dot),
                         frame, ' ',
                         NULL
                     );
@@ -228,7 +232,7 @@ void nodes_window(void){
                         (profile_pic_height+2) * (i-tui.window_nodes_scroll) + 2,
                         profile_pic_width + 2, 5, 5, 
                         3, tui.windows.nodes.size.w - 5 - profile_pic_width,
-                        (strfmt_t)(strfmt_align_center | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                        (strfmt_t)(strfmt_align_center | strfmt_lines_no_scroll | strfmt_linebreak_no_wrap_dot_dot_dot),
                         frame_noframe, ' ',
                         NULL
                     );
@@ -250,7 +254,7 @@ void nodes_window(void){
             wdraw_label(
                 tui.windows.nodes.win, "No known nodes available!", 
                 1, 1, 3, 4, tui.windows.nodes.size.w - 3, tui.windows.nodes.size.w - 3,
-                (strfmt_t)(strfmt_align_left | strfmt_lines_cut | strfmt_linebreak_no_wrap_dot_dot_dot),
+                (strfmt_t)(strfmt_align_left | strfmt_lines_no_scroll | strfmt_linebreak_no_wrap_dot_dot_dot),
                 frame_dotted, ' ',
                 NULL
             );
@@ -328,6 +332,32 @@ void animation_layer(void){
     wattroff(tui.windows.nodes.win, COLOR_PAIR(color_pair_border));
 }
 
+// text messages and input message layer
+void text_layer(void){
+    wattron(tui.windows.input.win, COLOR_PAIR(color_pair_border));
+
+    char *input_str = strfmtr(
+        tui.input_buffer, 
+        1, tui.windows.input.size.h - 2, 
+        1, tui.windows.input.size.w - 2,
+        strfmt_align_left | strfmt_linebreak_wrap_hyphen | strfmt_lines_scroll,
+        NULL
+    );
+    
+    wdraw_rect(
+        tui.windows.input.win, 
+        tui.windows.input.size.h - 2, tui.windows.input.size.w - 2, 
+        1, 1, 
+        frame_noframe, ' '
+    );
+
+    mvwprintwln(tui.windows.input.win, 1, 1, input_str);
+    
+    free(input_str);
+
+    wattroff(tui.windows.input.win, COLOR_PAIR(color_pair_border));
+}
+
 // draw to curses
 void tui_draw(tui_layer_t layer){
 
@@ -357,31 +387,12 @@ void tui_draw(tui_layer_t layer){
         case tui_layer_animations:
             animation_layer();
             break;
-        
-    }
-}
 
-// logic
-void tui_logic(int input){
-    switch(input){
-        case '\t':
-            {
-                switch(tui.cur_sel_win){
-                    case window_id_nodes:
-                        tui.cur_sel_win = window_id_talk;
-                        break;
-                        
-                    case window_id_talk:
-                        tui.cur_sel_win = window_id_input;
-                        break;
-                        
-                    default:
-                    case window_id_input:
-                        tui.cur_sel_win = window_id_nodes;
-                        break;
-                }
-            }
+        // text layer, for chat and input
+        case tui_layer_text:
+            text_layer();
             break;
+        
     }
 }
 

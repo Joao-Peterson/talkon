@@ -6,6 +6,10 @@
 #include "db.h"
 #include "curses_extra.h"
 
+/* ----------------------------------------- Defines ---------------------------------------- */
+
+#define input_max_len   2000
+
 /* ----------------------------------------- Enums ------------------------------------------ */
 
 typedef enum{
@@ -32,7 +36,8 @@ typedef enum{
 
 typedef enum{
     tui_layer_base          = 0x01,                   
-    tui_layer_animations    = 0x02                           
+    tui_layer_animations    = 0x02,                           
+    tui_layer_text          = 0x04                           
 }tui_layer_t;
 
 /* ----------------------------------------- Struct's ----------------------------------------- */
@@ -64,11 +69,15 @@ typedef struct{
     bool ping_icon_show;
 
     doc *nodes;
+
+    char input_buffer[input_max_len];
 }tui_t; 
 
 /* ----------------------------------------- Globals ---------------------------------------- */
 
 extern tui_t tui;
+
+#define first_sel_win window_id_nodes
 
 /* ----------------------------------------- Functions -------------------------------------- */
 
@@ -77,9 +86,6 @@ void tui_init(void);
 
 // draw to curses
 void tui_draw(tui_layer_t layer);
-
-// logic
-void tui_logic(int input);
 
 // close tui
 void tui_end(void);

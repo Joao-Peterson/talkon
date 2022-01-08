@@ -7,11 +7,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
-#include <sys/types.h>
 #include <time.h>
+#include <ctype.h>
 #include <plibsys.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <doc.h>
 #include <doc_print.h>
 #include <doc_json.h>
@@ -92,20 +90,6 @@ int main(int argq, char **argv){
 
     // variable for plibsys errors
     PError *err = NULL;
-    
-    // create semaphore for discovery transmitter communication
-    // char sem_name[50] = {0};
-    // snprintf(sem_name, 50, "discovery_ping_signal_%i", p_process_get_current_pid()); // unique name for semaphore
-    // discovery_ping_signal = p_semaphore_new(sem_name, 0, P_SEM_ACCESS_OPEN, &err);
-    // if(discovery_ping_signal == NULL || err != NULL){
-    //     log_error("Error while creating psemaphore discovery_ping_signal.\n");
-    //     if(err != NULL){
-    //         log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
-    //         p_error_free(err);
-    //         err = NULL;
-    //     }
-    //     return -1;
-    // }
 
     // initalize lock for discovery thread flags struct read/write
     discovery_thread_flags_lock = p_rwlock_new();
@@ -137,7 +121,7 @@ int main(int argq, char **argv){
     initscr();
     keypad(stdscr, true);
     // cbreak();
-    timeout(300);
+    timeout(0);
     noecho();
     clear();
     curs_set(0);
@@ -168,14 +152,8 @@ int main(int argq, char **argv){
         log_error("couldn't fetch nodes from sqlite database.\n");
     }
 
-    // first render
-    {
-        tui_draw(tui_layer_base);
-        update_panels();
-        refresh();
-        tui_draw(tui_layer_base);
-        update_panels();
-        refresh();
+    // first render, dit it three times to update all things correctly
+    for(int i = 0; i < 3; i++){
         tui_draw(tui_layer_base);
         update_panels();
         refresh();
@@ -184,8 +162,6 @@ int main(int argq, char **argv){
     // main loop
     while(1){
         
-        log_flush();
-
         // ----------------------- treads com. -----------------
 
         int ping_done = false;
@@ -223,8 +199,6 @@ int main(int argq, char **argv){
         // int input = getchar();
         // fflush(stdin);
 
-        tui_logic(input);
-
         switch(tui.cur_sel_win){
             case window_id_main:
                 switch(input){
@@ -249,6 +223,10 @@ int main(int argq, char **argv){
             
             case window_id_nodes:
                 switch(input){
+                    case '\t':
+                        tui.cur_sel_win = window_id_talk;
+                        break;
+                        
                     case 'q':
                             err_and_die();
                             log_close_out(); // close rfopen() of stderr by log.c
@@ -276,6 +254,10 @@ int main(int argq, char **argv){
             
             case window_id_talk:
                 switch(input){
+                    case '\t':
+                        tui.cur_sel_win = window_id_input;
+                        break;
+
                     case 'q':
                             err_and_die();
                             log_close_out(); // close rfopen() of stderr by log.c
@@ -287,11 +269,32 @@ int main(int argq, char **argv){
             
             case window_id_input:
                 switch(input){
-                    case 'q':
-                            err_and_die();
-                            log_close_out(); // close rfopen() of stderr by log.c
-                            return 0;
-                    break;
+                    case '\t':
+                        tui.cur_sel_win = window_id_nodes;
+                        break;
+
+                    // enter to send message
+                    case '\n':
+                        
+                        break;
+
+                    // input characters
+                    default:
+                        {
+                            if(isprint(input)){
+                                char input_str[2];
+                                input_str[0] = input;
+                                input_str[1] = '\0';
+                                strncat(tui.input_buffer, input_str, input_max_len);
+                            }
+                        }
+                        break;
+
+                    // case 'q':
+                    //         err_and_die();
+                    //         log_close_out(); // close rfopen() of stderr by log.c
+                    //         return 0;
+                    // break;
                 }
 
             break;
@@ -310,9 +313,10 @@ int main(int argq, char **argv){
         // ----------------------- draw ------------------------
         
         switch(input){
-            // only update animations on timeout
+            // update animations every time, on getchr timeout 
             case ERR:
                 tui_draw(tui_layer_animations);
+                tui_draw(tui_layer_text);
 
                 // when an animation or popup disappers, redraw all windows
                 if(tui.ping_icon_show == 0 && last_ping_state == 1)
@@ -325,11 +329,27 @@ int main(int argq, char **argv){
                 
                 break;
             
-            // update all layers in case of input
+            // update all layers in case of input commands, exluding text input
             default:
-                tui_draw(tui_layer_base);
-                update_panels();
-                refresh();
+                {
+                    static window_id_t last_window = first_sel_win;
+
+                    /**
+                    * render all windows normally (everytime) regardless of current selected window, 
+                    * except when the input window is selected, we render all windows when it's first selected.
+                    * This is done to minimize rendering on every keystroke when typing on the input window. 
+                    */
+                    if( 
+                        tui.cur_sel_win != window_id_input ||
+                        (tui.cur_sel_win != last_window && tui.cur_sel_win == window_id_input)
+                    ){
+                        tui_draw(tui_layer_base);
+                        update_panels();
+                        refresh();
+                    }
+
+                    last_window = tui.cur_sel_win;
+                }
                 break;
         }
         
