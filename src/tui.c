@@ -353,9 +353,29 @@ void text_layer(void){
 
     mvwprintwln(tui.windows.input.win, 1, 1, input_str);
     
-    free(input_str);
-
     wattroff(tui.windows.input.win, COLOR_PAIR(color_pair_border));
+
+    // ex:
+    // [1000 / 2000] 
+    if(tui.cur_sel_win == window_id_input)
+        wattron(tui.windows.input.win, COLOR_PAIR(color_pair_border_highlight));
+    else
+        wattron(tui.windows.input.win, COLOR_PAIR(color_pair_border));
+    
+    char text_len_str[15];
+    snprintf(text_len_str, 15, "[%4u / %4u]", tui.input_buffer_size, input_max_len);
+
+    mvwprintwln(tui.windows.input.win, 
+        tui.windows.input.size.h - 1, tui.windows.input.size.w - strlen(text_len_str) - 2,
+        text_len_str
+    );
+    
+    if(tui.cur_sel_win == window_id_input)
+        wattroff(tui.windows.input.win, COLOR_PAIR(color_pair_border_highlight));
+    else
+        wattroff(tui.windows.input.win, COLOR_PAIR(color_pair_border));
+
+    free(input_str);
 }
 
 // draw to curses

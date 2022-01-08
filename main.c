@@ -281,11 +281,12 @@ int main(int argq, char **argv){
                     // input characters
                     default:
                         {
-                            if(isprint(input)){
+                            if(isprint(input) && tui.input_buffer_size < input_max_len){
                                 char input_str[2];
                                 input_str[0] = input;
                                 input_str[1] = '\0';
                                 strncat(tui.input_buffer, input_str, input_max_len);
+                                tui.input_buffer_size++;
                             }
                         }
                         break;

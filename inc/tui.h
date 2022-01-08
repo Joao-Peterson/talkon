@@ -71,6 +71,7 @@ typedef struct{
     doc *nodes;
 
     char input_buffer[input_max_len];
+    size_t input_buffer_size;
 }tui_t; 
 
 /* ----------------------------------------- Globals ---------------------------------------- */

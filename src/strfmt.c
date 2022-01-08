@@ -465,6 +465,7 @@ char *strfmtr(char *string, size_t min_lines, size_t max_lines, size_t min_line_
                 }
 
                 strcat_realloc(&str_scroll, str_fmtd_copy + (line - str_fmtd));
+                free(str_fmtd_copy);
             }
             break;
     }
