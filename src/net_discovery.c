@@ -3,6 +3,7 @@
 #include <asm-generic/socket.h>
 #include <netinet/in.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,15 +39,16 @@
 
 #define buffer_read_size 1024
 
-/* ----------------------------------------- Functions ---------------------------------------- */
+/* ----------------------------------------- Globals ------------------------------------------ */
+
+bool last_ping_state = false;
+
+/* ----------------------------------------- Private functions -------------------------------- */
 
 // initialize discovery_receiver
-discovery_receiver_t *discovery_receiver_init(void){
-
-    discovery_receiver_t *discovery_receiver = calloc(1, sizeof(*discovery_receiver));
-
-    int udp_port = config_get("discovery.port_udp_listen", int);
-    int port_retry_num = config_get("discovery.port_retry_num", int);
+psocket_address_t *discovery_receiver_pscocket_address_init(uint32_t udp_port, uint32_t port_retry_num){
+    
+    psocket_address_t *discovery_receiver = calloc(1, sizeof(*discovery_receiver));
 
     PError *err;
 
@@ -142,12 +144,6 @@ discovery_receiver_t *discovery_receiver_init(void){
     return discovery_receiver;
 }
 
-// ends the discovery_receiver, cleaning up memory
-void discovery_receiver_delete(discovery_receiver_t *discovery_receiver){
-    p_socket_address_free(discovery_receiver->address);
-    p_socket_free(discovery_receiver->socket);
-}
-
 // responds to the message received  
 void discovery_receiver_respond(PSocket *client, PSocketAddress *remote_address, char *data){
     doc *packet_in = doc_json_parse(data);
@@ -233,7 +229,7 @@ void discovery_receiver_listen(discovery_receiver_t *discovery_receiver){
         if(remote_address != NULL)
             p_socket_address_free(remote_address);
 
-        received_bytes = p_socket_receive_from(discovery_receiver->socket, &remote_address, buffer, buffer_read_size, NULL);
+        received_bytes = p_socket_receive_from(discovery_receiver->socket->socket, &remote_address, buffer, buffer_read_size, NULL);
 
         /*
         * filter out the response to itself, this occurs when the host interface address is the same
@@ -246,7 +242,7 @@ void discovery_receiver_listen(discovery_receiver_t *discovery_receiver){
         */ 
         if(
             (inet_address_cmp_str(p_socket_address_get_address(remote_address), interfaces) == true) &&
-            ((p_socket_address_get_port(remote_address) - p_socket_address_get_port(discovery_receiver->address)) % 10) == 0
+            ((p_socket_address_get_port(remote_address) - p_socket_address_get_port(discovery_receiver->socket->address)) % 10) == 0
         ){
             log("discovery receiver got a multicast to self, ignoring ...\n");
             free(received_msg);
@@ -273,7 +269,7 @@ void discovery_receiver_listen(discovery_receiver_t *discovery_receiver){
             p_socket_address_get_port(remote_address), 
             received_msg
         );
-        discovery_receiver_respond(discovery_receiver->socket, remote_address, received_msg);
+        discovery_receiver_respond(discovery_receiver->socket->socket, remote_address, received_msg);
         
         if(remote_address != NULL)
             p_socket_address_free(remote_address);
@@ -288,25 +284,22 @@ void discovery_receiver_listen(discovery_receiver_t *discovery_receiver){
 }
 
 // initialize discovery_transmitter
-discovery_transmitter_t *discovery_transmitter_init(void){
-    discovery_transmitter_t *discovery_transmitter = calloc(1, sizeof(*discovery_transmitter));
-
-    int udp_port = config_get("discovery.port_udp_send", int);
-    int port_retry_num = config_get("discovery.port_retry_num", int);
+psocket_address_t *discovery_transmitter_psocket_address_init(uint32_t udp_port, uint32_t port_retry_num, uint32_t timeout_ms){
+    psocket_address_t *discovery_transmitter_psocket_address = calloc(1, sizeof(*discovery_transmitter_psocket_address));
 
     PError *err;
 
     for(int retry = 0; retry < port_retry_num; retry++){
 
         // make sure to free if faile don retry
-        if(discovery_transmitter->address != NULL)
-            p_socket_address_free(discovery_transmitter->address);
+        if(discovery_transmitter_psocket_address->address != NULL)
+            p_socket_address_free(discovery_transmitter_psocket_address->address);
 
-        if(discovery_transmitter->socket != NULL)
-            p_socket_free(discovery_transmitter->socket);
+        if(discovery_transmitter_psocket_address->socket != NULL)
+            p_socket_free(discovery_transmitter_psocket_address->socket);
 
         // create addres struct
-        if((discovery_transmitter->address = p_socket_address_new_any(P_SOCKET_FAMILY_INET, retry+udp_port)) == NULL){
+        if((discovery_transmitter_psocket_address->address = p_socket_address_new_any(P_SOCKET_FAMILY_INET, retry+udp_port)) == NULL){
             if(retry == port_retry_num){
                 log_error("Error creating address for localhost in discovery_transmitter\n");
                 return NULL;
@@ -318,8 +311,8 @@ discovery_transmitter_t *discovery_transmitter_init(void){
         }
 
         // create socket on ip and port
-        discovery_transmitter->socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, &err);
-        if(discovery_transmitter->socket == NULL || err != NULL){
+        discovery_transmitter_psocket_address->socket = p_socket_new(P_SOCKET_FAMILY_INET, P_SOCKET_TYPE_DATAGRAM, P_SOCKET_PROTOCOL_UDP, &err);
+        if(discovery_transmitter_psocket_address->socket == NULL || err != NULL){
             if(err != NULL){
                 log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
                 p_error_free(err);
@@ -337,7 +330,7 @@ discovery_transmitter_t *discovery_transmitter_init(void){
         }
 
         // bind
-        pboolean res = p_socket_bind(discovery_transmitter->socket, discovery_transmitter->address, false, &err);
+        pboolean res = p_socket_bind(discovery_transmitter_psocket_address->socket, discovery_transmitter_psocket_address->address, false, &err);
         if(res == false || err != NULL){
             if(err != NULL){
                 log_error("[plibsys] [%i] %s\n", p_error_get_code(err), p_error_get_message(err));
@@ -360,34 +353,26 @@ discovery_transmitter_t *discovery_transmitter_init(void){
 
     // enable loopback
     int loopback = 1;
-    if((setsockopt(p_socket_get_fd(discovery_transmitter->socket), IPPROTO_IP, IP_MULTICAST_LOOP, &loopback , sizeof(loopback))) < 0){
+    if((setsockopt(p_socket_get_fd(discovery_transmitter_psocket_address->socket), IPPROTO_IP, IP_MULTICAST_LOOP, &loopback , sizeof(loopback))) < 0){
         log_error("Error setting up the udp multicast loopback option in discovery_transmitter\n");
-        p_socket_address_free(discovery_transmitter->address);
-        p_socket_free(discovery_transmitter->socket);
+        p_socket_address_free(discovery_transmitter_psocket_address->address);
+        p_socket_free(discovery_transmitter_psocket_address->socket);
         return NULL;
     }
 
     // set timeout
-    int timeout_ms = config_get("discovery.timeout_ms", int);
-    p_socket_set_timeout(discovery_transmitter->socket, timeout_ms);
+    p_socket_set_timeout(discovery_transmitter_psocket_address->socket, timeout_ms);
 
-    log("UDP multicast sender opened in discovery_transmitter on interface %s:%i\n", p_socket_address_get_address(discovery_transmitter->address), p_socket_address_get_port(discovery_transmitter->address));
+    log("UDP multicast sender opened in discovery_transmitter on interface %s:%i\n", 
+        p_socket_address_get_address(discovery_transmitter_psocket_address->address), 
+        p_socket_address_get_port(discovery_transmitter_psocket_address->address)
+    );
     
-    return discovery_transmitter;
+    return discovery_transmitter_psocket_address;
 }
 
-// ends the discovery_transmitter, cleaning up memory
-void discovery_transmitter_delete(discovery_transmitter_t *discovery_transmitter){
-    p_socket_address_free(discovery_transmitter->address);
-    p_socket_free(discovery_transmitter->socket);
-}
-
-doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
-
-    // config get
-    int port_remote_min = config_get("discovery.port_udp_discovery_range[0]", int);
-    int port_remote_max = config_get("discovery.port_udp_discovery_range[1]", int);
-    char *multicast_group = config_get("discovery.address_udp_multicast_group", char*);
+// discovery_transmitter function that multicasts on the network to discover new nodes
+doc *discovery_transmitter_ping(discovery_transmitter_t *transmitter){
 
     PError *err = NULL;
 
@@ -398,13 +383,13 @@ doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
     );
 
     // ping trought all listening udp ports on multicast group 
-    for(int port = port_remote_min; port <= port_remote_max; port++){
+    for(uint32_t port = transmitter->port_remote_min; port <= transmitter->port_remote_max; port++){
 
         // create remote address
-        PSocketAddress *multicast = p_socket_address_new(multicast_group, port);
+        PSocketAddress *multicast = p_socket_address_new(transmitter->multicast_group_ip_address, port);
 
         // send ping
-        psize res = p_socket_send_to(discovery_transmitter->socket, multicast, "{\"type\": 1}", 14ULL, &err);
+        psize res = p_socket_send_to(transmitter->socket->socket, multicast, "{\"type\": 1}", 14ULL, &err);
         if(res == -1 || err != NULL){
             log_error("Error sending multicast in discovery_transmitter to udp group (%s:%i)",
                 p_socket_address_get_address(multicast),
@@ -433,11 +418,11 @@ doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
                 p_socket_address_free(remote_address);
             
             // send ping
-            received_bytes = p_socket_receive_from(discovery_transmitter->socket, &remote_address, buffer, buffer_read_size, &err);
+            received_bytes = p_socket_receive_from(transmitter->socket->socket, &remote_address, buffer, buffer_read_size, &err);
 
             // error on timeout
             if(err != NULL || p_error_get_code(err) == P_ERROR_IO_TIMED_OUT){
-                log("discovery_transmitter timed out on (%s:%i)\n", multicast_group, port);
+                log("discovery_transmitter timed out on (%s:%i)\n", transmitter->multicast_group_ip_address, port);
                 
                 p_error_free(err);
                 err = NULL;
@@ -498,4 +483,155 @@ doc *discovery_transmitter_ping(discovery_transmitter_t *discovery_transmitter){
     }
 
     return nodes;
+}
+
+// discovery_receiver thread daemon routine
+void *discovery_receiver_thread_routine(void *data){
+
+    discovery_receiver_t *receiver = (discovery_receiver_t*)data;
+    
+    if(receiver == NULL){
+        log_error("discovery_Receiver init failed\n");
+        return NULL;
+    }
+
+    while(receiver->flag_running){
+        discovery_receiver_listen(receiver);
+    }
+
+    return NULL;
+}
+
+// discovery_transmitter thread routine
+void *discovery_transmitter_thread_routine(void *data){
+
+    discovery_transmitter_t *transmitter = (discovery_transmitter_t*)data;
+
+    while(transmitter->flag_running){
+
+        bool ping = false;
+
+        if(p_rwlock_reader_trylock(transmitter->flags_lock)){
+            ping = transmitter->flag_ping;
+            transmitter->flag_ping = false;
+            p_rwlock_reader_unlock(transmitter->flags_lock);
+        }
+        
+        if(ping){
+            doc *nodes = discovery_transmitter_ping(transmitter);
+
+            if(nodes == NULL || doc_get_size(nodes, ".") == 0){
+                log(
+                    "no nodes found on network. Scanned group %s:[%i/%i].\n", 
+                    config_get("discovery.address_udp_multicast_group", char*),
+                    config_get("discovery.port_udp_discovery_range[0]", int),
+                    config_get("discovery.port_udp_discovery_range[1]", int)
+                );
+            }
+            
+            if(nodes != NULL && doc_get_size(nodes, ".") > 0){
+
+                p_rwlock_writer_lock(db_lock);
+
+                // loop through received nodes in doc *nodes, inserting them into db
+                for(doc_loop(node, nodes)){
+                    if(db_insert_node(db, node)){
+                        log_error("error insert discovered node into sqlite database.\n");
+                    }
+                }
+
+                p_rwlock_writer_unlock(db_lock);
+
+            }
+
+            if(nodes != NULL)
+                doc_delete(nodes, ".");
+
+            ping = false;
+
+            p_rwlock_writer_lock(transmitter->flags_lock);
+            transmitter->flag_done = true;
+            p_rwlock_writer_unlock(transmitter->flags_lock);
+        }
+
+    }
+
+    return NULL;
+}
+
+/* ----------------------------------------- Functions ---------------------------------------- */
+
+// initialize discovery_receiver
+discovery_receiver_t *discovery_receiver_init(uint32_t udp_port, uint32_t port_retry_num){
+
+    discovery_receiver_t *receiver = calloc(1, sizeof(*receiver));
+
+    receiver->flag_running = true;
+    
+    receiver->socket = discovery_receiver_pscocket_address_init(udp_port, port_retry_num);
+
+    receiver->thread = p_uthread_create(
+        discovery_receiver_thread_routine, 
+        (void*)receiver, 
+        true, 
+        "discovery_receiver_thread"
+    );
+
+    return receiver;
+}
+
+// ends the discovery_receiver, cleaning up memory
+void discovery_receiver_delete(discovery_receiver_t *receiver){
+    receiver->flag_running = false;
+    p_uthread_join(receiver->thread);
+
+    p_socket_address_free(receiver->socket->address);
+    p_socket_free(receiver->socket->socket);
+    p_uthread_unref(receiver->thread);
+    free(receiver);
+}
+
+// initialize discovery_transmitter
+discovery_transmitter_t *discovery_transmitter_init(
+    uint32_t udp_port, uint32_t port_retry_num, uint32_t timeout_ms,
+    uint32_t port_remote_min, uint32_t port_remote_max,
+    char *multicast_group_ip_address
+){    
+
+    discovery_transmitter_t *transmitter = calloc(1, sizeof(*transmitter));
+    
+    transmitter->flag_done = false;
+    transmitter->flag_done = false;
+    transmitter->flag_running = true;
+    transmitter->port_remote_max = port_remote_max;
+    transmitter->port_remote_min = port_remote_min;
+    transmitter->multicast_group_ip_address = multicast_group_ip_address;
+
+    transmitter->flags_lock = p_rwlock_new();
+    if(transmitter->flags_lock == NULL){
+        log_error("error initializing discovery_thread_flags_lock.\n");
+        // return -1;
+    }
+
+    transmitter->socket = discovery_transmitter_psocket_address_init(udp_port, port_retry_num, timeout_ms);
+
+    transmitter->thread = p_uthread_create(
+        discovery_transmitter_thread_routine, 
+        (void*)transmitter, 
+        true, 
+        "discovery_transmitter_thread"
+    );
+
+    return transmitter;
+}
+
+// ends the discovery_transmitter, cleaning up memory
+void discovery_transmitter_delete(discovery_transmitter_t *transmitter){
+    transmitter->flag_running = false;
+    p_uthread_join(transmitter->thread);
+
+    p_socket_address_free(transmitter->socket->address);
+    p_socket_free(transmitter->socket->socket);
+    p_uthread_unref(transmitter->thread);
+    free(transmitter);
 }

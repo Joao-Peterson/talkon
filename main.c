@@ -25,33 +25,14 @@
 
 /* ----------------------------------------- Globals ------------------------------------------ */
 
-pthread_t discovery_receiver_thread;
-
-pthread_t discovery_transmitter_thread;
-
-PRWLock *discovery_thread_flags_lock;
-
 PRWLock *db_lock;
 
 db_t *db;
-
-struct discovery_thread_flags_t{
-    bool ping;
-    bool done;
-}discovery_thread_flags;
-
-bool last_ping_state = false;
 
 /* ----------------------------------------- Functions ---------------------------------------- */
 
 // err and die
 void static inline err_and_die(void);
-
-// discovery_receiver thread daemon routine
-void *discovery_receiver_thread_routine(void *data);
-
-// discovery_transmitter thread daemon routine
-void *discovery_transmitter_thread_routine(void *data);
 
 /* ----------------------------------------- Main --------------------------------------------- */
 
@@ -82,21 +63,11 @@ int main(int argq, char **argv){
         return -1;
     }
 
-    discovery_thread_flags.done = false;
-    discovery_thread_flags.ping = false;
-
     // greetings!
     // log("logged as \"%s\" uuid: \"%s\", welcome!.\n", profile_get("name", char*), profile_get("uuid", char*));
 
     // variable for plibsys errors
     PError *err = NULL;
-
-    // initalize lock for discovery thread flags struct read/write
-    discovery_thread_flags_lock = p_rwlock_new();
-    if(discovery_thread_flags_lock == NULL){
-        log_error("error initializing discovery_thread_flags_lock.\n");
-        return -1;
-    }
 
     // initalize lock for database read/write
     db_lock = p_rwlock_new();
@@ -105,17 +76,27 @@ int main(int argq, char **argv){
         return -1;
     }
 
-    // create thread for discovery listening
-    if(pthread_create(&discovery_receiver_thread, NULL, &discovery_receiver_thread_routine, NULL) < 0){
-        log_error("Discovery receiver thread creation failed\n");
-        return -1;
-    }
+    // discovery receiver
+    uint32_t receiver_udp_port = (uint32_t)config_get("discovery.port_udp_listen", int);
+    uint32_t receiver_port_retry_num = (uint32_t)config_get("discovery.port_retry_num", int);
 
-    // create thread for discovery sending
-    if(pthread_create(&discovery_transmitter_thread, NULL, &discovery_transmitter_thread_routine, NULL) < 0){
-        log_error("Discovery transmitter thread creation failed\n");
-        return -1;
-    }
+    discovery_receiver_t *receiver = discovery_receiver_init(
+        receiver_udp_port, receiver_port_retry_num
+    );
+
+    // discovery trasmitter
+    uint32_t transmitter_udp_port = config_get("discovery.port_udp_send", int);
+    uint32_t transmitter_port_retry_num = config_get("discovery.port_retry_num", int);
+    uint32_t transmitter_timeout_ms = config_get("discovery.timeout_ms", int);
+    uint32_t transmitter_port_remote_min = config_get("discovery.port_udp_discovery_range[0]", int);
+    uint32_t transmitter_port_remote_max = config_get("discovery.port_udp_discovery_range[1]", int);
+    char *transmitter_multicast_group = config_get("discovery.address_udp_multicast_group", char*);
+
+    discovery_transmitter_t *transmitter = discovery_transmitter_init(
+        transmitter_udp_port, transmitter_port_retry_num, transmitter_timeout_ms,
+        transmitter_port_remote_max, transmitter_port_remote_min,
+        transmitter_multicast_group 
+    );
 
     // initialize curses
     initscr();
@@ -234,6 +215,7 @@ int main(int argq, char **argv){
                     break;
 
                     case 'p':
+                    case 'r':
                         log_debug("sending ping signal.\n");
                         tui.ping_icon_show = true;
                         p_rwlock_writer_lock(discovery_thread_flags_lock);
@@ -269,23 +251,46 @@ int main(int argq, char **argv){
             
             case window_id_input:
                 switch(input){
+                    // change window
                     case '\t':
                         tui.cur_sel_win = window_id_nodes;
                         break;
 
                     // enter to send message
-                    case '\n':
+                    case KEY_ENTER:
                         
+                        break;
+
+                    // clear message
+                    case KEY_BACKSPACE:
+                        {
+                            if(tui.input_buffer_size == 1){
+                                tui.input_buffer[tui.input_buffer_size] = '\0';
+                                tui.input_buffer[tui.input_buffer_size - 1] = '\0';
+                                tui.input_buffer_size--;
+                            }
+                            else if(tui.input_buffer_size > 0){
+                                tui.input_buffer[tui.input_buffer_size - 1] = input_cursor_char;
+                                tui.input_buffer[tui.input_buffer_size] = '\0';
+                                tui.input_buffer_size--;
+                            }
+                        }
                         break;
 
                     // input characters
                     default:
                         {
-                            if(isprint(input) && tui.input_buffer_size < input_max_len){
-                                char input_str[2];
+                            if(isprint(input) && (tui.input_buffer_size < input_max_len)){
+                                char input_str[3];
                                 input_str[0] = input;
-                                input_str[1] = '\0';
+                                input_str[1] = input_cursor_char;
+                                input_str[2] = '\0';
+
+                                if(tui.input_buffer_size > 0)
+                                    tui.input_buffer[tui.input_buffer_size] = '\0';
+
                                 strncat(tui.input_buffer, input_str, input_max_len);
+
                                 tui.input_buffer_size++;
                             }
                         }
@@ -368,13 +373,8 @@ void static inline err_and_die(void){
 
     endwin();
     
-    pthread_cancel(discovery_receiver_thread);
-    pthread_cancel(discovery_transmitter_thread);
-    // p_semaphore_take_ownership(discovery_ping_signal);
-    // p_semaphore_free(discovery_ping_signal);
-
-    p_rwlock_free(discovery_thread_flags_lock);
-    p_rwlock_free(db_lock);
+    discovery_transmitter_delete(transmitter);
+    discovery_receiver_delete(receiver);
     db_delete(db);
 
     tui_end();
@@ -382,83 +382,4 @@ void static inline err_and_die(void){
     config_save();
     config_end();
     p_libsys_shutdown();
-}
-
-// discovery_receiver thread daemon routine
-void *discovery_receiver_thread_routine(void *data){
-
-    discovery_receiver_t *discovery_receiver = discovery_receiver_init();
-    
-    if(discovery_receiver == NULL){
-        log_error("discovery_Receiver init failed\n");
-        return NULL;
-    }
-
-    while(1){
-        discovery_receiver_listen(discovery_receiver);
-    }
-
-    discovery_receiver_delete(discovery_receiver);
-
-    return NULL;
-}
-
-// discovery_transmitter thread routine
-void *discovery_transmitter_thread_routine(void *data){
-
-    discovery_transmitter_t *transmitter = discovery_transmitter_init();
-    while(1){
-        // receive semaphore ping signal
-        // p_semaphore_acquire(discovery_ping_signal, NULL);
-
-        bool ping = false;
-
-        if(p_rwlock_reader_trylock(discovery_thread_flags_lock)){
-            ping = discovery_thread_flags.ping;
-            discovery_thread_flags.ping = false;
-            p_rwlock_reader_unlock(discovery_thread_flags_lock);
-        }
-        
-        if(ping){
-            doc *nodes = discovery_transmitter_ping(transmitter);
-
-            if(nodes == NULL || doc_get_size(nodes, ".") == 0){
-                log(
-                    "no nodes found on network. Scanned group %s:[%i/%i].\n", 
-                    config_get("discovery.address_udp_multicast_group", char*),
-                    config_get("discovery.port_udp_discovery_range[0]", int),
-                    config_get("discovery.port_udp_discovery_range[1]", int)
-                );
-            }
-            
-            if(nodes != NULL && doc_get_size(nodes, ".") > 0){
-
-                p_rwlock_writer_lock(db_lock);
-
-                // loop through received nodes in doc *nodes, inserting them into db
-                for(doc_loop(node, nodes)){
-                    if(db_insert_node(db, node)){
-                        log_error("error insert discovered node into sqlite database.\n");
-                    }
-                }
-
-                p_rwlock_writer_unlock(db_lock);
-
-            }
-
-            if(nodes != NULL)
-                doc_delete(nodes, ".");
-
-            ping = false;
-
-            p_rwlock_writer_lock(discovery_thread_flags_lock);
-            discovery_thread_flags.done = true;
-            p_rwlock_writer_unlock(discovery_thread_flags_lock);
-        }
-
-    }
-
-    discovery_transmitter_delete(transmitter);
-
-    return NULL;
 }

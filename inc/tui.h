@@ -1,6 +1,7 @@
 #ifndef _TUI_HEADER_
 #define _TUI_HEADER_
 
+#include <stdint.h>
 #include <doc.h>
 #include <plibsys.h>
 #include "db.h"
@@ -8,7 +9,9 @@
 
 /* ----------------------------------------- Defines ---------------------------------------- */
 
-#define input_max_len   2000
+#define input_max_len       100
+
+#define input_cursor_char   '_'
 
 /* ----------------------------------------- Enums ------------------------------------------ */
 
@@ -70,8 +73,8 @@ typedef struct{
 
     doc *nodes;
 
-    char input_buffer[input_max_len];
-    size_t input_buffer_size;
+    char input_buffer[input_max_len + 2];
+    uint32_t input_buffer_size;
 }tui_t; 
 
 /* ----------------------------------------- Globals ---------------------------------------- */
